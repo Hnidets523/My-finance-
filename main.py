@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 import calendar
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
@@ -8,13 +8,11 @@ from telegram.ext import (
 )
 
 # ====== CONFIG ======
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
-ONLY_USER_ID = None  # обмеження доступу, залишай None якщо не треба
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
+ONLY_USER_ID = None
 
-# Типи операцій
 TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика"]
 
-# Категорії
 CATEGORIES = {
     "💸 Витрати": {
         "Харчування": ["Кафе", "Супермаркет/ринок", "Гульки", "Трати на роботі"],
@@ -126,7 +124,7 @@ def days_kb(year, month):
     rows.append(["↩️ Назад"])
     return kb(rows)
 
-# ====== DB SAVE ======
+# ====== DB FUNCTIONS ======
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     cur.execute("""
         INSERT INTO transactions (user_id, type, category, subcategory, amount, currency, comment, date, created_at)
@@ -134,48 +132,43 @@ def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
     conn.commit()
 
-# ====== STATS QUERY ======
-def get_stats_for_day(user_id, year, month, day):
-    date_str = f"{year}-{month}-{day.zfill(2)}"
-    cur.execute("""
-        SELECT type, currency, SUM(amount) FROM transactions
-        WHERE user_id=? AND date=?
-        GROUP BY type, currency
-    """, (user_id, date_str))
-    rows = cur.fetchall()
-    if not rows:
-        return f"📭 Немає записів за {date_str}."
-    res = [f"📅 Статистика за {date_str}:"]
-    for t, curr, amt in rows:
-        res.append(f"{t}: {amt:.2f} {curr}")
-    return "\n".join(res)
+def get_detailed_stats(user_id, year, month=None, day=None):
+    if day:
+        date_str = f"{year}-{month}-{day.zfill(2)}"
+        query = "SELECT type, category, subcategory, amount, currency, comment FROM transactions WHERE user_id=? AND date=?"
+        params = (user_id, date_str)
+        title = f"📅 Детальна статистика за {date_str}:"
+    else:
+        query = """
+            SELECT type, category, subcategory, amount, currency, comment FROM transactions
+            WHERE user_id=? AND strftime('%Y', date)=? AND strftime('%m', date)=?
+        """
+        params = (user_id, str(year), str(month).zfill(2))
+        title = f"📆 Детальна статистика за {year}-{month.zfill(2)}:"
 
-def get_stats_for_month(user_id, year, month):
-    cur.execute("""
-        SELECT type, currency, SUM(amount) FROM transactions
-        WHERE user_id=? AND strftime('%Y', date)=? AND strftime('%m', date)=?
-        GROUP BY type, currency
-    """, (user_id, str(year), str(month).zfill(2)))
+    cur.execute(query, params)
     rows = cur.fetchall()
     if not rows:
-        return f"📭 Немає записів за {year}-{month.zfill(2)}."
-    res = [f"📆 Статистика за {year}-{month.zfill(2)}:"]
-    for t, curr, amt in rows:
-        res.append(f"{t}: {amt:.2f} {curr}")
-    return "\n".join(res)
+        return f"{title}\n📭 Немає записів."
+
+    summary = {t: 0 for t in ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]}
+    details = []
+    for t, cat, sub, amt, curr, com in rows:
+        summary[t] += amt
+        details.append(f"- {t} | {cat} / {sub if sub else '-'}: {amt:.2f} {curr} ({com if com else '-'})")
+
+    totals = "\n".join([f"{t}: {summary[t]:.2f}" for t in summary])
+    return f"{title}\n\n" + "\n".join(details) + f"\n\nПідсумок:\n{totals}"
 
 # ====== HANDLERS ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n\n"
+    await update.message.reply_text(
+        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n"
         "Тут ти можеш:\n"
-        "💸 Додавати витрати\n"
-        "💰 Фіксувати доходи\n"
-        "📈 Облік інвестицій\n"
-        "📊 Переглядати статистику\n\n"
-        "Засновник: @hnidets011"
+        "💸 Додавати витрати\n💰 Фіксувати доходи\n📈 Облік інвестицій\n📊 Переглядати статистику\n\n"
+        "Засновник: @hnidets011",
+        reply_markup=main_menu_kb()
     )
-    await update.message.reply_text(welcome_text, reply_markup=main_menu_kb())
     return TYPE
 
 async def pick_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -191,11 +184,11 @@ async def pick_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CATEGORY
 
 async def choose_stats_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text
-    if choice == "↩️ Назад":
+    mode = update.message.text
+    if mode == "↩️ Назад":
         await update.message.reply_text("Повернувся в головне меню:", reply_markup=main_menu_kb())
         return TYPE
-    context.user_data["stats_mode"] = choice
+    context.user_data["stats_mode"] = mode
     await update.message.reply_text("Оберіть рік:", reply_markup=years_kb())
     return YEAR
 
@@ -215,7 +208,7 @@ async def choose_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return YEAR
     context.user_data["month"] = month
     if context.user_data["stats_mode"] == "📆 За місяць":
-        stats = get_stats_for_month(update.effective_user.id, context.user_data["year"], month)
+        stats = get_detailed_stats(update.effective_user.id, context.user_data["year"], month)
         await update.message.reply_text(stats, reply_markup=stats_modes_kb())
         return STATS_MODE
     await update.message.reply_text("Оберіть день:", reply_markup=days_kb(context.user_data["year"], month))
@@ -226,11 +219,11 @@ async def choose_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if day == "↩️ Назад":
         await update.message.reply_text("Повернувся до вибору місяця:", reply_markup=months_kb())
         return MONTH
-    stats = get_stats_for_day(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
+    stats = get_detailed_stats(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
     await update.message.reply_text(stats, reply_markup=stats_modes_kb())
     return STATS_MODE
 
-# ==== решта функцій: вибір категорії, підкатегорії, введення суми, валюти, коментаря ====
+# ==== решта логіки додавання витрат ====
 async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     t = context.user_data.get("type")
@@ -307,9 +300,8 @@ async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         date_str
     )
     await update.message.reply_text(
-        f"✅ Записано:\n{ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
-        f"Сума: {ud['amount']} {ud['currency']}\n"
-        f"Дата: {date_str}\nКоментар: {comment if comment else '-'}"
+        f"✅ Записано:\n{ud['type']} → {ud['category']} → {ud.get('subcategory', '-')}\n"
+        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}\nКоментар: {comment if comment else '-'}"
     )
     ud.clear()
     await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
