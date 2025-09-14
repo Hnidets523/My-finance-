@@ -8,7 +8,7 @@ from telegram.ext import (
 
 # ====== CONFIG ======
 BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
-ONLY_USER_ID = None
+ONLY_USER_ID = None  # можеш вказати свій Telegram ID, щоб обмежити доступ
 
 # Типи операцій
 TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика"]
@@ -68,7 +68,10 @@ TYPE, CATEGORY, SUBCATEGORY, AMOUNT, CURRENCY, COMMENT, STATS = range(7)
 
 # ====== KEYBOARDS ======
 def kb(rows):
-    return ReplyKeyboardMarkup([[KeyboardButton(x) for x in row] for row in rows], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(x) for x in row] for row in rows],
+        resize_keyboard=True
+    )
 
 def main_menu_kb():
     return kb([TYPES])
@@ -120,29 +123,48 @@ def get_stats(period: str, user_id: int):
     now = datetime.now()
     if period == "📅 Сьогодні":
         start_date = now.strftime("%Y-%m-%d")
-        query = "SELECT type, SUM(amount) FROM transactions WHERE user_id=? AND date=? GROUP BY type"
+        query = """
+            SELECT type, currency, SUM(amount)
+            FROM transactions
+            WHERE user_id=? AND date=?
+            GROUP BY type, currency
+        """
         params = (user_id, start_date)
     elif period == "📅 Тиждень":
         start_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-        query = "SELECT type, SUM(amount) FROM transactions WHERE user_id=? AND date>=? GROUP BY type"
+        query = """
+            SELECT type, currency, SUM(amount)
+            FROM transactions
+            WHERE user_id=? AND date>=?
+            GROUP BY type, currency
+        """
         params = (user_id, start_date)
     elif period == "📅 Місяць":
         start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
-        query = "SELECT type, SUM(amount) FROM transactions WHERE user_id=? AND date>=? GROUP BY type"
+        query = """
+            SELECT type, currency, SUM(amount)
+            FROM transactions
+            WHERE user_id=? AND date>=?
+            GROUP BY type, currency
+        """
         params = (user_id, start_date)
     else:
         return "❌ Невідомий період."
 
     cur.execute(query, params)
-    data = cur.fetchall()
-
-    if not data:
+    rows = cur.fetchall()
+    if not rows:
         return "📭 Немає записів за обраний період."
 
-    summary = f"📊 Статистика за {period}:\n\n"
-    for row in data:
-        summary += f"{row[0]}: {row[1]} грн\n"
-    return summary
+    lines = [f"📊 Статистика за {period}:\n"]
+    by_type = {}
+    for t, curr, s in rows:
+        by_type.setdefault(t, []).append((curr, s))
+
+    for t, arr in by_type.items():
+        parts = [f"{amt:.2f} {curr}" for curr, amt in arr]
+        lines.append(f"{t}: " + " + ".join(parts))
+    return "\n".join(lines)
 
 # ====== HANDLERS ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -176,13 +198,92 @@ async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if period == "↩️ Назад":
         await update.message.reply_text("Повернувся в головне меню:", reply_markup=main_menu_kb())
         return TYPE
-
     result = get_stats(period, update.effective_user.id)
     await update.message.reply_text(result, reply_markup=stats_kb())
     return STATS
 
-# Решта функцій (pick_category, pick_subcategory, pick_amount, pick_currency, pick_comment) залишаються без змін
-# Я їх не переписував заново, бо вони правильні — встав ті ж самі з попереднього коду
+async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    t = context.user_data.get("type")
+    if text == "↩️ Назад":
+        await update.message.reply_text("Повернувся в головне меню:", reply_markup=main_menu_kb())
+        return TYPE
+    if text not in CATEGORIES[t]:
+        await update.message.reply_text("Обери категорію:", reply_markup=categories_kb(t))
+        return CATEGORY
+    context.user_data["category"] = text
+    subs = CATEGORIES[t][text]
+    if subs:
+        await update.message.reply_text("Підкатегорія:", reply_markup=subcategories_kb(t, text))
+        return SUBCATEGORY
+    context.user_data["subcategory"] = None
+    await update.message.reply_text("Введи суму:")
+    return AMOUNT
+
+async def pick_subcategory(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    t = context.user_data.get("type")
+    c = context.user_data.get("category")
+    if text == "↩️ Назад":
+        await update.message.reply_text("Вибери категорію:", reply_markup=categories_kb(t))
+        return CATEGORY
+    if text == "(без підкатегорії)":
+        context.user_data["subcategory"] = None
+    else:
+        subs = CATEGORIES[t][c] or []
+        if text not in subs:
+            await update.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(t, c))
+            return SUBCATEGORY
+        context.user_data["subcategory"] = text
+    await update.message.reply_text("Введи суму:")
+    return AMOUNT
+
+async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.replace(",", ".").strip()
+    try:
+        amount = float(text)
+    except ValueError:
+        await update.message.reply_text("Сума має бути числом:")
+        return AMOUNT
+    context.user_data["amount"] = amount
+    await update.message.reply_text("Валюта?", reply_markup=currencies_kb())
+    return CURRENCY
+
+async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text == "↩️ Назад":
+        await update.message.reply_text("Введи суму ще раз:")
+        return AMOUNT
+    if text not in CURRENCIES:
+        await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
+        return CURRENCY
+    context.user_data["currency"] = text
+    await update.message.reply_text("Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
+    return COMMENT
+
+async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    comment = update.message.text
+    if comment == "-":
+        comment = None
+    ud = context.user_data
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    save_tx(
+        update.effective_user.id,
+        ud["type"],
+        ud["category"],
+        ud.get("subcategory"),
+        ud["amount"],
+        ud["currency"],
+        comment,
+        date_str
+    )
+    await update.message.reply_text(
+        f"✅ Записано: {ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
+        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}"
+    )
+    ud.clear()
+    await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
+    return TYPE
 
 # ====== APP START ======
 def build_app():
