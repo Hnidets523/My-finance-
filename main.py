@@ -246,7 +246,7 @@ async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Сума має бути числом:")
         return AMOUNT
     context.user_data["amount"] = amount
-    await update.message.reply_text("Валюта?", reply_markup=currencies_kb())
+    await update.message.reply_text("💱 Обери валюту:", reply_markup=currencies_kb())
     return CURRENCY
 
 async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,15 +258,17 @@ async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
         return CURRENCY
     context.user_data["currency"] = text
-    await update.message.reply_text("Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
+    await update.message.reply_text("📝 Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
     return COMMENT
 
 async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     comment = update.message.text
-    if comment == "-":
+    if comment.strip() == "-":
         comment = None
+
     ud = context.user_data
     date_str = datetime.now().strftime("%Y-%m-%d")
+
     save_tx(
         update.effective_user.id,
         ud["type"],
@@ -277,10 +279,15 @@ async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         comment,
         date_str
     )
+
     await update.message.reply_text(
-        f"✅ Записано: {ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
-        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}"
+        f"✅ Записано:\n"
+        f"{ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
+        f"Сума: {ud['amount']} {ud['currency']}\n"
+        f"Дата: {date_str}\n"
+        f"Коментар: {comment if comment else '-'}"
     )
+
     ud.clear()
     await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
     return TYPE
