@@ -1,4 +1,3 @@
-import os
 import sqlite3
 from datetime import datetime, timedelta
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -8,8 +7,8 @@ from telegram.ext import (
 )
 
 # ====== CONFIG ======
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Токен береться з Railway → Variables
-ONLY_USER_ID = None  # Можна вказати свій Telegram ID, щоб бот був лише для тебе
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # Твій токен тут
+ONLY_USER_ID = None
 
 # Типи операцій
 TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]
@@ -168,4 +167,75 @@ async def pick_subcategory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Введи суму:")
     return AMOUNT
 
-async def pick_amount(update: Update
+async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.replace(",", ".").strip()
+    try:
+        amount = float(text)
+    except ValueError:
+        await update.message.reply_text("Сума має бути числом:")
+        return AMOUNT
+    context.user_data["amount"] = amount
+    await update.message.reply_text("Валюта?", reply_markup=currencies_kb())
+    return CURRENCY
+
+async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text == "↩️ Назад":
+        await update.message.reply_text("Введи суму ще раз:")
+        return AMOUNT
+    if text not in CURRENCIES:
+        await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
+        return CURRENCY
+    context.user_data["currency"] = text
+    await update.message.reply_text("Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
+    return COMMENT
+
+async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    comment = update.message.text
+    if comment == "-":
+        comment = None
+    ud = context.user_data
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    save_tx(
+        update.effective_user.id,
+        ud["type"],
+        ud["category"],
+        ud.get("subcategory"),
+        ud["amount"],
+        ud["currency"],
+        comment,
+        date_str
+    )
+    await update.message.reply_text(
+        f"✅ Записано: {ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
+        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}"
+    )
+    ud.clear()
+    await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
+    return TYPE
+
+# ====== APP START ======
+def build_app():
+    app = Application.builder().token(BOT_TOKEN).build()
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_type)],
+            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_category)],
+            SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_subcategory)],
+            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_amount)],
+            CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_currency)],
+            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_comment)],
+        },
+        fallbacks=[],
+        allow_reentry=True,
+    )
+    app.add_handler(conv)
+    return app
+
+def main():
+    app = build_app()
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
