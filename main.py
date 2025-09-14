@@ -7,11 +7,11 @@ from telegram.ext import (
 )
 
 # ====== CONFIG ======
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # Твій токен тут
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
 ONLY_USER_ID = None
 
 # Типи операцій
-TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]
+TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика"]
 
 # Категорії та підкатегорії
 CATEGORIES = {
@@ -41,6 +41,7 @@ CATEGORIES = {
 }
 
 CURRENCIES = ["грн", "$"]
+STATS_PERIODS = ["📅 Сьогодні", "📅 Тиждень", "📅 Місяць", "↩️ Назад"]
 
 # ====== DB ======
 DB_PATH = "finance.db"
@@ -63,7 +64,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 conn.commit()
 
 # ====== STATES ======
-TYPE, CATEGORY, SUBCATEGORY, AMOUNT, CURRENCY, COMMENT = range(6)
+TYPE, CATEGORY, SUBCATEGORY, AMOUNT, CURRENCY, COMMENT, STATS = range(7)
 
 # ====== KEYBOARDS ======
 def kb(rows):
@@ -99,143 +100,9 @@ def subcategories_kb(for_type, category):
 def currencies_kb():
     return kb([CURRENCIES, ["↩️ Назад"]])
 
+def stats_kb():
+    return kb([STATS_PERIODS])
+
 # ====== DATABASE SAVE ======
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
-    cur.execute("""
-        INSERT INTO transactions (user_id, type, category, subcategory, amount, currency, comment, date, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
-    conn.commit()
-
-# ====== HANDLERS ======
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "👋 Привіт! Я — фінансовий бот, який допоможе вести облік витрат, доходів та інвестицій.\n\n"
-        "Тут ти можеш:\n"
-        "💸 Додавати витрати та сортувати їх за категоріями\n"
-        "💰 Фіксувати надходження\n"
-        "📈 Вести облік інвестицій\n"
-        "📊 Переглядати статистику своїх фінансів\n\n"
-        "Бот створений для особистого використання.\n"
-        "Засновник: @hnidets011"
-    )
-    await update.message.reply_text(welcome_text, reply_markup=main_menu_kb())
-    return TYPE
-
-async def pick_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t not in TYPES:
-        await update.message.reply_text("Будь ласка, обери кнопку нижче:", reply_markup=main_menu_kb())
-        return TYPE
-    context.user_data["type"] = t
-    await update.message.reply_text("Вибери категорію:", reply_markup=categories_kb(t))
-    return CATEGORY
-
-async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    if text == "↩️ Назад":
-        await update.message.reply_text("Повернувся в головне меню:", reply_markup=main_menu_kb())
-        return TYPE
-    if text not in CATEGORIES[t]:
-        await update.message.reply_text("Обери категорію:", reply_markup=categories_kb(t))
-        return CATEGORY
-    context.user_data["category"] = text
-    subs = CATEGORIES[t][text]
-    if subs:
-        await update.message.reply_text("Підкатегорія:", reply_markup=subcategories_kb(t, text))
-        return SUBCATEGORY
-    context.user_data["subcategory"] = None
-    await update.message.reply_text("Введи суму:")
-    return AMOUNT
-
-async def pick_subcategory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    c = context.user_data.get("category")
-    if text == "↩️ Назад":
-        await update.message.reply_text("Вибери категорію:", reply_markup=categories_kb(t))
-        return CATEGORY
-    if text == "(без підкатегорії)":
-        context.user_data["subcategory"] = None
-    else:
-        subs = CATEGORIES[t][c] or []
-        if text not in subs:
-            await update.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(t, c))
-            return SUBCATEGORY
-        context.user_data["subcategory"] = text
-    await update.message.reply_text("Введи суму:")
-    return AMOUNT
-
-async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.replace(",", ".").strip()
-    try:
-        amount = float(text)
-    except ValueError:
-        await update.message.reply_text("Сума має бути числом:")
-        return AMOUNT
-    context.user_data["amount"] = amount
-    await update.message.reply_text("Валюта?", reply_markup=currencies_kb())
-    return CURRENCY
-
-async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "↩️ Назад":
-        await update.message.reply_text("Введи суму ще раз:")
-        return AMOUNT
-    if text not in CURRENCIES:
-        await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
-        return CURRENCY
-    context.user_data["currency"] = text
-    await update.message.reply_text("Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
-    return COMMENT
-
-async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comment = update.message.text
-    if comment == "-":
-        comment = None
-    ud = context.user_data
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    save_tx(
-        update.effective_user.id,
-        ud["type"],
-        ud["category"],
-        ud.get("subcategory"),
-        ud["amount"],
-        ud["currency"],
-        comment,
-        date_str
-    )
-    await update.message.reply_text(
-        f"✅ Записано: {ud['type']} → {ud['category']} → {ud.get('subcategory', '')}\n"
-        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}"
-    )
-    ud.clear()
-    await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
-    return TYPE
-
-# ====== APP START ======
-def build_app():
-    app = Application.builder().token(BOT_TOKEN).build()
-    conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_type)],
-            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_category)],
-            SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_subcategory)],
-            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_amount)],
-            CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_currency)],
-            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_comment)],
-        },
-        fallbacks=[],
-        allow_reentry=True,
-    )
-    app.add_handler(conv)
-    return app
-
-def main():
-    app = build_app()
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+   
