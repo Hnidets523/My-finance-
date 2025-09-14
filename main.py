@@ -6,16 +6,19 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, ContextTypes, filters,
     ConversationHandler
 )
+
+# PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 
 # ====== CONFIG ======
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
-ONLY_USER_ID = None
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
+ONLY_USER_ID = None  # за бажанням: вкажи свій Telegram ID, щоб обмежити доступ
 
 TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика"]
+
 MONTH_NAMES = {
     "01": "Січень", "02": "Лютий", "03": "Березень", "04": "Квітень",
     "05": "Травень", "06": "Червень", "07": "Липень", "08": "Серпень",
@@ -140,7 +143,7 @@ def days_kb(year, month):
     rows.append(["↩️ Назад"])
     return kb(rows)
 
-# ====== DB FUNCTIONS ======
+# ====== DB HELPERS ======
 def fetch_transactions(user_id, year, month=None, day=None):
     if day:
         date_str = f"{year}-{month}-{day.zfill(2)}"
@@ -162,7 +165,7 @@ def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
     conn.commit()
 
-# ====== PDF GENERATOR ======
+# ====== PDF ======
 def generate_pdf(transactions, filename, title):
     doc = SimpleDocTemplate(filename, pagesize=A4)
     styles = getSampleStyleSheet()
@@ -175,6 +178,7 @@ def generate_pdf(transactions, filename, title):
         total[t] += amt
         data.append([t, cat, sub if sub else "-", f"{amt:.2f}", curr, com if com else "-"])
 
+    # Порожній рядок і підсумки
     data.append(["", "", "", "", "", ""])
     for t in total:
         data.append([t, "", "", f"{total[t]:.2f}", "", ""])
@@ -190,11 +194,12 @@ def generate_pdf(transactions, filename, title):
     elements.append(table)
     doc.build(elements)
 
-# ====== STATS VIEW ======
+# ====== STATS TEXT ======
 def get_detailed_stats_text(user_id, year, month=None, day=None):
     transactions = fetch_transactions(user_id, year, month, day)
+
     if day:
-        title = f"📅 Детальна статистика за {day} {MONTH_NAMES[month]} {year}:"
+        title = f"📅 Детальна статистика за {day.zfill(2)} {MONTH_NAMES[month]} {year}:"
     else:
         title = f"📆 Детальна статистика за {MONTH_NAMES[month]} {year}:"
 
@@ -211,8 +216,16 @@ def get_detailed_stats_text(user_id, year, month=None, day=None):
     text = f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{totals}"
     return text, transactions
 
+# ====== GUARDS (опційно обмеження користувача) ======
+def is_allowed(user_id: int) -> bool:
+    return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
+
 # ====== HANDLERS ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        await update.message.reply_text("⛔ Доступ обмежено.")
+        return ConversationHandler.END
+
     await update.message.reply_text(
         "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n"
         "💸 Додавай витрати\n💰 Фіксуй доходи\n📈 Облік інвестицій\n📊 Переглядай статистику\n\n"
@@ -252,17 +265,21 @@ async def choose_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MONTH
 
 async def choose_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    month = update.message.text
-    if month == "↩️ Назад":
+    month_name = update.message.text
+    if month_name == "↩️ Назад":
         await update.message.reply_text("Повернувся до вибору року:", reply_markup=years_kb())
         return YEAR
-    month_num = month_to_number(month)
+
+    month_num = month_to_number(month_name)
     context.user_data["month"] = month_num
-    if context.user_data["stats_mode"] == "📆 За місяць":
+
+    if context.user_data.get("stats_mode") == "📆 За місяць":
         text, transactions = get_detailed_stats_text(update.effective_user.id, context.user_data["year"], month_num)
         context.user_data["transactions"] = transactions
+        context.user_data["day"] = None
         await update.message.reply_text(text, reply_markup=kb([PDF_OPTION]))
         return PDF
+
     await update.message.reply_text("Оберіть день:", reply_markup=days_kb(context.user_data["year"], month_num))
     return DAY
 
@@ -271,23 +288,41 @@ async def choose_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if day == "↩️ Назад":
         await update.message.reply_text("Повернувся до вибору місяця:", reply_markup=months_kb())
         return MONTH
-    text, transactions = get_detailed_stats_text(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
+
+    text, transactions = get_detailed_stats_text(
+        update.effective_user.id,
+        context.user_data["year"],
+        context.user_data["month"],
+        day
+    )
     context.user_data["transactions"] = transactions
     context.user_data["day"] = day
     await update.message.reply_text(text, reply_markup=kb([PDF_OPTION]))
     return PDF
 
-async def send_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text
+    if choice == "↩️ Назад":
+        await update.message.reply_text("Повернувся до режимів:", reply_markup=stats_modes_kb())
+        return STATS_MODE
+
+    if choice != "📄 Завантажити PDF-звіт":
+        await update.message.reply_text("Оберіть дію:", reply_markup=kb([PDF_OPTION]))
+        return PDF
+
     transactions = context.user_data.get("transactions", [])
+    if not transactions:
+        await update.message.reply_text("📭 Немає даних для PDF.")
+        return STATS_MODE
+
     year = context.user_data.get("year")
     month = context.user_data.get("month")
     day = context.user_data.get("day")
 
-    if not transactions:
-        await update.message.reply_text("📭 Немає даних для PDF.")
-        return PDF
-
-    title = f"Звіт за {day.zfill(2) if day else ''} {MONTH_NAMES[month]} {year}" if month else f"Звіт за {year}"
+    title = (
+        f"Звіт за {day.zfill(2)} {MONTH_NAMES[month]} {year}"
+        if day else f"Звіт за {MONTH_NAMES[month]} {year}"
+    )
     filename = "report.pdf"
     generate_pdf(transactions, filename, title)
 
@@ -296,14 +331,14 @@ async def send_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Ось ваш PDF-звіт", reply_markup=stats_modes_kb())
     return STATS_MODE
 
-# ==== Логіка додавання транзакцій ====
+# ==== Додавання транзакцій ====
 async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     t = context.user_data.get("type")
     if text == "↩️ Назад":
         await update.message.reply_text("Головне меню:", reply_markup=main_menu_kb())
         return TYPE
-    if text not in CATEGORIES[t]:
+    if t not in CATEGORIES or text not in CATEGORIES[t]:
         await update.message.reply_text("Обери категорію:", reply_markup=categories_kb(t))
         return CATEGORY
     context.user_data["category"] = text
@@ -390,4 +425,23 @@ def build_app():
             STATS_MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_stats_mode)],
             YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_year)],
             MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_month)],
-            DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND,
+            DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],
+            PDF: [MessageHandler(filters.TEXT & ~filters.COMMAND, pdf_menu)],
+            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_category)],
+            SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_subcategory)],
+            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_amount)],
+            CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_currency)],
+            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_comment)],
+        },
+        fallbacks=[],
+        allow_reentry=True,
+    )
+    app.add_handler(conv)
+    return app
+
+def main():
+    app = build_app()
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
