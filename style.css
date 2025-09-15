@@ -1,26 +1,26 @@
-/* Загальні стилі */
+/* Загальний стиль */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #0d1b1e;
-  color: #f5f5f5;
-  line-height: 1.6;
-}
-
-/* Хедер */
-.main-header {
-  text-align: center;
-  padding: 30px 10px;
-  background: #1b3a4b;
+  background-color: #0f2027;
   color: #fff;
 }
-.main-header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 10px;
+
+header {
+  text-align: center;
+  padding: 40px 20px;
+  background: linear-gradient(145deg, #0f2027, #203a43, #2c5364);
 }
-.main-header p {
+
+header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+}
+
+header p {
+  margin-top: 10px;
   font-size: 1.2rem;
-  opacity: 0.8;
+  color: #d1d1d1;
 }
 
 /* Контейнер карток */
@@ -28,73 +28,56 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  padding: 20px;
-  gap: 20px;
+  gap: 30px;
+  padding: 40px 20px;
 }
 
-/* Картка */
+/* Картки */
 .card {
-  background: #1f3b4d;
+  background: #1f2f38;
   border-radius: 15px;
-  overflow: hidden;
   width: 280px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  transition: transform 0.3s;
+  text-align: center;
+  padding: 20px;
+  transition: transform 0.3s, box-shadow 0.3s;
 }
-.card:hover {
-  transform: translateY(-5px);
-}
+
 .card img {
   width: 100%;
   height: 180px;
   object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 15px;
 }
-.card-content {
-  padding: 15px;
-}
-.card-content h2 {
+
+.card h2 {
   font-size: 1.4rem;
-  margin: 0 0 10px;
+  margin: 10px 0;
 }
-.card-content p {
+
+.card p {
   font-size: 1rem;
-  margin: 0 0 15px;
-  color: #ddd;
-}
-
-/* Кнопка */
-.btn {
-  display: inline-block;
-  padding: 10px 15px;
-  background: linear-gradient(90deg, #1ed760, #1aa34a);
-  color: white;
-  font-weight: bold;
-  text-decoration: none;
-  border-radius: 8px;
-  transition: background 0.3s;
-}
-.btn:hover {
-  background: linear-gradient(90deg, #1aa34a, #14863c);
-}
-
-/* Статті */
-.container {
-  width: 90%;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
-}
-article img {
-  width: 100%;
-  max-height: 300px;
-  object-fit: cover;
-  border-radius: 10px;
+  color: #cfcfcf;
   margin-bottom: 20px;
 }
-article {
-  font-size: 18px;
-  line-height: 1.8;
+
+.card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
-ul {
-  padding-left: 20px;
+
+/* Кнопки */
+.btn {
+  background: #28a745;
+  color: white;
+  text-decoration: none;
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  display: inline-block;
+  transition: background 0.3s;
+}
+
+.btn:hover {
+  background: #218838;
 }
