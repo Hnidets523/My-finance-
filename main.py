@@ -21,7 +21,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 
 # ========= CONFIG =========
 BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
-ONLY_USER_ID = None  # Можна вказати свій Telegram ID, щоб обмежити доступ
+ONLY_USER_ID = None  # Якщо хочеш обмежити доступ — впиши свій Telegram ID
 
 TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
 CURRENCIES = {"UAH": "грн", "USD": "$"}
@@ -193,6 +193,7 @@ def days_kb(year, month):
     return ikb(rows)
 
 
+# ========= DB LOGIC =========
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     cur.execute("""
         INSERT INTO transactions (user_id, type, category, subcategory, amount, currency, comment, date, created_at)
@@ -258,48 +259,157 @@ def generate_pdf(transactions, filename, title):
     doc.build(elements)
 
 
-def allowed(user_id: int) -> bool:
-    return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
-
-
-# ========= COMMANDS =========
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not allowed(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ обмежено.")
-        return ConversationHandler.END
-
-    txt = (
-        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n\n"
-        "Засновник: @hnidets011"
-    )
-    await update.message.reply_text(txt, reply_markup=main_menu_kb())
-    return S.TYPE
-
-
-# ========= CALLBACKS =========
+# ========= BOT LOGIC =========
 async def edit_or_send(q, text, kb=None):
-    """Оновлює існуюче повідомлення замість створення нового."""
+    """Редагує повідомлення або шле нове, якщо не вдалось."""
     try:
         await q.message.edit_text(text, reply_markup=kb)
     except:
         await q.message.reply_text(text, reply_markup=kb)
 
 
-# Далі йде весь on_cb — аналог попереднього, але з `edit_or_send(...)` замість `reply_text(...)`
-
-# ========= APP =========
-def build_app():
-    app = Application.builder().token(BOT_TOKEN).build()
-    # ConversationHandler як у v2.2, тільки з edit_or_send
-    # (щоб не дублювати тут весь текст, скажи, і я скину повністю розгорнутий on_cb)
-
-    return app
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if ONLY_USER_ID and update.effective_user.id != ONLY_USER_ID:
+        await update.message.reply_text("⛔ Доступ обмежено.")
+        return ConversationHandler.END
+    txt = "👋 Привіт! Я — фінансовий бот.\nЗасновник: @hnidets011"
+    await update.message.reply_text(txt, reply_markup=main_menu_kb())
+    return S.TYPE
 
 
-def main():
-    app = build_app()
-    app.run_polling()
+# ========= CALLBACK HANDLER =========
+async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    data = q.data
+
+    # Головне меню
+    if data.startswith("type:"):
+        code = data.split(":")[1]
+        tname = TYPE_CODES[code]
+        context.user_data.clear()
+        context.user_data["type"] = tname
+        context.user_data["cat_list"] = list(CATEGORIES[tname].keys())
+        await edit_or_send(q, "Вибери категорію:", categories_kb(tname))
+        return S.CATEGORY
+
+    if data == "back:main":
+        await edit_or_send(q, "Меню:", main_menu_kb())
+        return S.TYPE
+
+    # Категорії
+    if data.startswith("cat:"):
+        idx = int(data.split(":")[1])
+        tname = context.user_data["type"]
+        cat = context.user_data["cat_list"][idx]
+        context.user_data["category"] = cat
+        subs = CATEGORIES[tname][cat]
+        if subs:
+            context.user_data["sub_list"] = subs
+            await edit_or_send(q, "Підкатегорія:", subcategories_kb(tname, cat))
+            return S.SUBCATEGORY
+        else:
+            context.user_data["subcategory"] = None
+            await edit_or_send(q, "Введи суму (наприклад 123.45):")
+            return S.AMOUNT
+
+    if data == "back:cats":
+        tname = context.user_data["type"]
+        await edit_or_send(q, "Вибери категорію:", categories_kb(tname))
+        return S.CATEGORY
+
+    # Підкатегорії
+    if data.startswith("sub:"):
+        if data == "sub:none":
+            context.user_data["subcategory"] = None
+        else:
+            idx = int(data.split(":")[1])
+            context.user_data["subcategory"] = context.user_data["sub_list"][idx]
+        await edit_or_send(q, "Введи суму (наприклад 123.45):")
+        return S.AMOUNT
+
+    # Валюта
+    if data == "back:amount":
+        await edit_or_send(q, "Введи суму ще раз:")
+        return S.AMOUNT
+
+    if data.startswith("cur:"):
+        code = data.split(":")[1]
+        context.user_data["currency"] = CURRENCIES[code]
+        await edit_or_send(q, "📝 Додай коментар або '-' якщо без:")
+        return S.COMMENT
+
+    # Статистика
+    if data == "stats:open" or data == "back:stats":
+        await edit_or_send(q, "Оберіть режим:", stats_mode_kb())
+        return S.STATS_MODE
+
+    if data.startswith("stats:mode:"):
+        mode = data.split(":")[2]
+        context.user_data["stats_mode"] = mode
+        await edit_or_send(q, "Оберіть рік:", years_kb())
+        return S.YEAR
+
+    if data.startswith("stats:year:"):
+        context.user_data["year"] = data.split(":")[2]
+        await edit_or_send(q, "Оберіть місяць:", months_kb())
+        return S.MONTH
+
+    if data.startswith("stats:month:"):
+        month = data.split(":")[2]
+        context.user_data["month"] = month
+        if context.user_data["stats_mode"] == "month":
+            text, tx = stats_text(update.effective_user.id, context.user_data["year"], month)
+            context.user_data["tx"] = tx
+            kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+            await edit_or_send(q, text, kb)
+            return S.PDF
+        else:
+            await edit_or_send(q, "Оберіть день:", days_kb(context.user_data["year"], month))
+            return S.DAY
+
+    if data.startswith("stats:day:"):
+        day = data.split(":")[2]
+        context.user_data["day"] = day
+        text, tx = stats_text(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
+        context.user_data["tx"] = tx
+        kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+        await edit_or_send(q, text, kb)
+        return S.PDF
+
+    if data == "stats:pdf":
+        tx = context.user_data.get("tx", [])
+        if not tx:
+            await edit_or_send(q, "📭 Немає даних для PDF.")
+            return S.STATS_MODE
+        year = context.user_data["year"]
+        month = context.user_data["month"]
+        day = context.user_data.get("day")
+        title = f"Звіт за {day} {MONTH_NAMES[month]} {year}" if day else f"Звіт за {MONTH_NAMES[month]} {year}"
+        filename = "report.pdf"
+        generate_pdf(tx, filename, title)
+        with open(filename, "rb") as f:
+            await q.message.reply_document(InputFile(f, filename))
+        await q.message.reply_text("✅ Готово", reply_markup=stats_mode_kb())
+        return S.STATS_MODE
+
+    return S.TYPE
 
 
-if __name__ == "__main__":
-    main()
+# ========= TEXT HANDLERS =========
+async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.replace(",", ".").strip()
+    try:
+        amount = float(text)
+    except:
+        await update.message.reply_text("Сума має бути числом.")
+        return S.AMOUNT
+    context.user_data["amount"] = amount
+    await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
+    return S.CURRENCY
+
+
+async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    comment = update.message.text.strip()
+    if comment == "-":
+        comment = None
