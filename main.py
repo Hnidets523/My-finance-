@@ -1,16 +1,26 @@
 # main.py
 # -*- coding: utf-8 -*-
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ФІНАНСОВИЙ БОТ + ОСОБИСТИЙ КАБІНЕТ + СТАТИСТИКА (ДЕНЬ/МІСЯЦЬ) + PDF/ДІАГРАМИ
+# КУРСИ (НБУ + COINGECKO), ФІНАНСОВА ВІКТОРИНА, ТА 🧠 AI-ПОМИЧНИК (LOCAL)
+# ─────────────────────────────────────────────────────────────────────────────
+# ВИМОГИ (requirements.txt):
+# python-telegram-bot[job-queue]==20.3
+# reportlab
+# matplotlib
+# requests
+# transformers==4.43.3
+# torch==2.2.2
+# ─────────────────────────────────────────────────────────────────────────────
+
 import os
 import sqlite3
 import calendar
 import random
-import json
-import time
 import requests
-from transformers import pipeline
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 
 from telegram import (
     Update, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
@@ -33,33 +43,52 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# ==== AI (локальна маленька модель, без інтернету/платних ендпоїнтів) ====
+from transformers import pipeline
+AI_MODE = os.getenv("AI_MODE", "local")         # "local" (рекомендовано) або "hf" (резерв)
+LOCAL_MODEL_ID = os.getenv("LOCAL_MODEL_ID", "sshleifer/tiny-gpt2")
+
+# РЕЗЕРВ: HTTP до HF API (не використовується, якщо AI_MODE=local)
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL", "gpt2")
+HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+
+def _ai_local_init():
+    try:
+        return pipeline("text-generation", model=LOCAL_MODEL_ID)
+    except Exception as e:
+        # якщо раптом локальна модель не зібралась — повернемо None
+        return None
+
+_local_generator = _ai_local_init()
+
+def ai_answer(prompt: str) -> str:
+    """Єдина точка входу для AI-помічника."""
+    # LOCAL: швидко і безкоштовно
+    if AI_MODE == "local" and _local_generator is not None:
+        out = _local_generator(prompt, max_length=200, num_return_sequences=1)
+        return out[0]["generated_text"]
+
+    # РЕЗЕРВНИЙ шлях (якщо хтось увімкне AI_MODE=hf у Variables):
+    try:
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"} if HF_API_KEY else {}
+        payload = {"inputs": prompt}
+        r = requests.post(HF_URL, headers=headers, json=payload, timeout=60)
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list) and data and "generated_text" in data[0]:
+                return data[0]["generated_text"]
+            if isinstance(data, dict) and "generated_text" in data:
+                return data["generated_text"]
+            return str(data)[:1000]
+        return f"AI помічник тимчасово недоступний (HTTP {r.status_code})."
+    except Exception as e:
+        return "AI помічник недоступний зараз."
+
 # ===================== CONFIG =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).)
-# Локальна модель для генерації тексту
-chatbot = pipeline("text-generation", model="sshleifer/tiny-gpt2")
-
-def ask_ai(prompt):
-    response = chatbot(prompt, max_length=100, num_return_sequences=1)
-    return response[0]["generated_text"]
-
-HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "tiiuae/falcon-7b-instruct")
-HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
-def hf_call(prompt):
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    payload = {"inputs": prompt}
-
-    response = requests.post(HF_URL, headers=headers, json=payload)
-    if response.status_code == 200:
-        result = response.json()
-        if isinstance(result, list) and "generated_text" in result[0]:
-            return result[0]["generated_text"]
-        return str(result)
-    else:
-        return f"Помилка Hugging Face API: {response.status_code}"
+    raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).")
 
 DB_PATH = "finance.db"
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
@@ -157,7 +186,6 @@ CATEGORY_COLORS = {
     "Поповнення мобільного": "#607D8B",
     "Розваги": "#673AB7",
     "Vodafone": "#E91E63",
-    # інвест/доходи
     "Крипта": "#FBC02D",
     "Зарядні пристрої": "#8BC34A",
     "Hub station": "#00BCD4",
@@ -168,7 +196,6 @@ CATEGORY_COLORS = {
     "Інше": "#9E9E9E",
 }
 
-# ==== цитати/поради (повернули повний блок) ====
 TIPS = [
     "Не заощаджуй те, що залишилось після витрат — витрачай те, що залишилось після заощаджень. — Уоррен Баффет",
     "Бюджет — це те, що змушує ваші гроші робити те, що ви хочете. — Дейв Ремзі",
@@ -183,56 +210,48 @@ TIPS = [
     "Гроші люблять тишу. Приймай рішення раціонально, не імпульсивно."
 ]
 
-# ===================== QUIZ (20 питань, рандом) =====================
+# ===================== QUIZ (20 питань) =====================
 QUIZ_QUESTIONS_BASE = [
-    {"q": "Який рекомендований мінімальний розмір фінансової подушки безпеки?",
-     "opts": ["1 місяць витрат", "3–6 місяців витрат", "12 місяців витрат", "2 тижні витрат"], "ans": 1},
-    {"q": "Що таке правило «Плати спочатку собі»?",
-     "opts": ["Плати борги перш ніж витрачати", "Купи потрібне — решта в заощадження", "Спершу відкладай, а потім витрачай", "Спершу оплати підписки"], "ans": 2},
-    {"q": "Яке твердження про диверсифікацію вірне?",
-     "opts": ["Інвестувати в один актив — безпечніше", "Розподіл інвестицій зменшує ризик", "Диверсифікація знижує прибуток до нуля", "Це про економію, а не інвестиції"], "ans": 1},
-    {"q": "Що таке складний процент?",
-     "opts": ["Відсоток лише на початкову суму", "Відсоток на відсоток", "Плата банку за обслуговування", "Разова комісія брокера"], "ans": 1},
-    {"q": "Який відсоток доходу класти в заощадження — базова порада?",
-     "opts": ["1–5%", "10–20%", "30–40%", "50%+"], "ans": 1},
-    {"q": "Що робити перед інвестиціями?",
-     "opts": ["Оформити кредитну картку", "Скласти подушку безпеки", "Купити нерухомість", "Нічого не потрібно"], "ans": 1},
-    {"q": "Що таке бюджет 50/30/20?",
-     "opts": ["50% інвестиції, 30% борги, 20% витрати",
-              "50% потреби, 30% бажання, 20% заощадження",
-              "50% бажання, 30% потреби, 20% борги",
-              "50% витрати, 50% інвестиції"], "ans": 1},
-    {"q": "Який ризик у “гарячих” криптопроєктах?",
-     "opts": ["Гарантований прибуток", "Нульовий ризик", "Висока волатильність і ризик втрат", "Державні гарантії"], "ans": 2},
-    {"q": "Що ефективніше проти імпульсивних покупок?",
-     "opts": ["Купувати вночі", "Правило 24 годин паузи", "Оплата готівкою", "Позика в друга"], "ans": 1},
-    {"q": "Який інструмент найкраще фіксує реальні витрати щодня?",
-     "opts": ["Пам’ять", "Щомісячний звіт", "Записи у боті/додатку", "Раз на пів року"], "ans": 2},
-    {"q": "Що зменшує боргове навантаження швидше?",
-     "opts": ["Платити мінімалки", "Сніжний ком: з найменших боргів", "Взяти новий кредит", "Ігнорувати борги"], "ans": 1},
-    {"q": "Що означає «жити нижче своїх можливостей»?",
-     "opts": ["Витрачати більше ніж заробляєш", "Завжди купувати найдешевше",
-              "Витрачати менше доходу та інвестувати різницю", "Жити без комфорту"], "ans": 2},
-    {"q": "Який головний ризик збереження грошей лише у готівці?",
-     "opts": ["Зручність", "Інфляція з’їдає купівельну спроможність", "Високий відсоток", "Державні гарантії"], "ans": 1},
-    {"q": "Що важливіше при довгостроковому інвестуванні?",
-     "opts": ["Час на ринку", "Таймінг ринку", "Ідеальна точка входу", "Щоденна купівля-продаж"], "ans": 0},
-    {"q": "Що з цього — актив?",
-     "opts": ["Автомобіль, що щомісяця потребує витрат", "Кафе-кава кожного дня",
-              "Акції/фонди, що генерують дохід", "Підписка на серіали"], "ans": 2},
-    {"q": "Оптимальна кількість валют у заощадженнях?",
-     "opts": ["Лише одна", "2–3 валюти", "10 валют", "Не має значення"], "ans": 1},
-    {"q": "Що таке «резерви на непередбачувані витрати»?",
-     "opts": ["Витрати на розваги", "Гроші на бажання",
-              "Фонд для поломок/лікування/штрафів", "Податкова пільга"], "ans": 2},
-    {"q": "Чому автоматичні перекази в заощадження — це добре?",
-     "opts": ["Бо незручно", "Зменшує дисципліну",
-              "Знімає зусилля: стабільність і звичка", "Не має сенсу"], "ans": 2},
-    {"q": "Навіщо відстежувати підписки?",
-     "opts": ["Щоб не пропустити серіал", "Щоб не переплачувати щомісяця непомітно",
-              "Щоб заробляти на підписках", "Щоб платити штрафи"], "ans": 1},
-    {"q": "Коли починати інвестувати?",
-     "opts": ["Коли буде багато грошей", "Одразу після створення подушки", "Ніколи", "Лише в кризу"], "ans": 1},
+    {"q":"Який рекомендований мінімальний розмір фінансової подушки безпеки?",
+     "opts":["1 місяць витрат","3–6 місяців витрат","12 місяців витрат","2 тижні витрат"],"ans":1},
+    {"q":"Що таке правило «Плати спочатку собі»?",
+     "opts":["Плати борги перш ніж витрачати","Купи потрібне — решта в заощадження","Спершу відкладай, а потім витрачай","Спершу оплати підписки"],"ans":2},
+    {"q":"Яке твердження про диверсифікацію вірне?",
+     "opts":["Інвестувати в один актив — безпечніше","Розподіл інвестицій зменшує ризик","Диверсифікація знижує прибуток до нуля","Це про економію, а не інвестиції"],"ans":1},
+    {"q":"Що таке складний процент?",
+     "opts":["Відсоток лише на початкову суму","Відсоток на відсоток","Плата банку за обслуговування","Разова комісія брокера"],"ans":1},
+    {"q":"Який відсоток доходу класти в заощадження — базова порада?",
+     "opts":["1–5%","10–20%","30–40%","50%+"],"ans":1},
+    {"q":"Що робити перед інвестиціями?",
+     "opts":["Оформити кредитну картку","Скласти подушку безпеки","Купити нерухомість","Нічого не потрібно"],"ans":1},
+    {"q":"Що таке бюджет 50/30/20?",
+     "opts":["50% інвестиції, 30% борги, 20% витрати","50% потреби, 30% бажання, 20% заощадження","50% бажання, 30% потреби, 20% борги","50% витрати, 50% інвестиції"],"ans":1},
+    {"q":"Який ризик у “гарячих” криптопроєктах?",
+     "opts":["Гарантований прибуток","Нульовий ризик","Висока волатильність і ризик втрат","Державні гарантії"],"ans":2},
+    {"q":"Що ефективніше проти імпульсивних покупок?",
+     "opts":["Купувати вночі","Правило 24 годин паузи","Оплата готівкою","Позика в друга"],"ans":1},
+    {"q":"Який інструмент найкраще фіксує реальні витрати щодня?",
+     "opts":["Пам’ять","Щомісячний звіт","Записи у боті/додатку","Раз на пів року"],"ans":2},
+    {"q":"Що зменшує боргове навантаження швидше?",
+     "opts":["Платити мінімалки","Сніжний ком: з найменших боргів","Взяти новий кредит","Ігнорувати борги"],"ans":1},
+    {"q":"Що означає «жити нижче своїх можливостей»?",
+     "opts":["Витрачати більше ніж заробляєш","Завжди купувати найдешевше","Витрачати менше доходу та інвестувати різницю","Жити без комфорту"],"ans":2},
+    {"q":"Який головний ризик збереження грошей лише у готівці?",
+     "opts":["Зручність","Інфляція з’їдає купівельну спроможність","Високий відсоток","Державні гарантії"],"ans":1},
+    {"q":"Що важливіше при довгостроковому інвестуванні?",
+     "opts":["Час на ринку","Таймінг ринку","Ідеальна точка входу","Щоденна купівля-продаж"],"ans":0},
+    {"q":"Що з цього — актив?",
+     "opts":["Автомобіль, що щомісяця потребує витрат","Кафе-кава кожного дня","Акції/фонди, що генерують дохід","Підписка на серіали"],"ans":2},
+    {"q":"Оптимальна кількість валют у заощадженнях?",
+     "opts":["Лише одна","2–3 валюти","10 валют","Не має значення"],"ans":1},
+    {"q":"Що таке «резерви на непередбачувані витрати»?",
+     "opts":["Витрати на розваги","Гроші на бажання","Фонд для поломок/лікування/штрафів","Податкова пільга"],"ans":2},
+    {"q":"Чому автоматичні перекази в заощадження — це добре?",
+     "opts":["Бо незручно","Зменшує дисципліну","Знімає зусилля: стабільність і звичка","Не має сенсу"],"ans":2},
+    {"q":"Навіщо відстежувати підписки?",
+     "opts":["Щоб не пропустити серіал","Щоб не переплачувати щомісяця непомітно","Щоб заробляти на підписках","Щоб платити штрафи"],"ans":1},
+    {"q":"Коли починати інвестувати?",
+     "opts":["Коли буде багато грошей","Одразу після створення подушки","Ніколи","Лише в кризу"],"ans":1},
 ]
 
 # ===================== STATES =====================
@@ -245,8 +264,8 @@ QUIZ_QUESTIONS_BASE = [
     STAT_MONTH_SELECT,
     STAT_DAY_SELECT,
     PROFILE_EDIT_NAME,
-    QUIZ_ACTIVE,       # гра активна — кліки A/B/C/D
-    AI_ASK,            # користувач пише питання AI
+    QUIZ_ACTIVE,       # вікторина
+    AI_ASK,            # AI-помічник: очікуємо запит
 ) = range(10)
 
 # ===================== RATES (NBU + CoinGecko) =====================
@@ -280,7 +299,7 @@ async def refresh_rates_job(context: ContextTypes.DEFAULT_TYPE):
     if btc_usd: rates["btc_usd"] = btc_usd
     if eth_usd: rates["eth_usd"] = eth_usd
     context.application.bot_data["rates"] = rates
-    context.application.bot_data["rates_updated"] = datetime.now(timezone.utc).isoformat()
+    context.application.bot_data["rates_updated"] = datetime.utcnow().isoformat()
 
 def fmtn(v: float) -> str:
     return f"{v:,.2f}".replace(",", " ").replace(".", ",")
@@ -317,14 +336,14 @@ def create_or_update_user(user_id: int, name: str, currency: str):
         INSERT INTO users (user_id, name, currency, created_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET name=excluded.name, currency=excluded.currency
-    """, (user_id, name, currency, datetime.now(timezone.utc).isoformat()))
+    """, (user_id, name, currency, datetime.utcnow().isoformat()))
     conn.commit()
 
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     cur.execute("""
         INSERT INTO transactions (user_id, type, category, subcategory, amount, currency, comment, date, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.now(timezone.utc).isoformat()))
+    """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
     conn.commit()
 
 def fetch_day(user_id, y, m, d):
@@ -437,7 +456,7 @@ def main_menu_ikb():
         [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
         [("📈 Інвестиції", "type:inv"), ("📊 Статистика", "stats:open")],
         [("🎮 Гра", "quiz:start"), ("👤 Мій профіль", "profile:open")],
-        [("🤖 AI-помічник", "ai:open")]
+        [("🧠 AI-помічник", "ai:open")]
     ])
 
 def categories_ikb(tname):
@@ -537,7 +556,7 @@ INTRO_TEXT = (
     "• Будувати 🥧 діаграми витрат та генерувати 📄 PDF-звіти\n"
     "• Зберігати історію транзакцій і профіль (ім’я, валюта)\n"
     "• Показувати реальні курси валют/крипти (НБУ + CoinGecko)\n"
-    "• Мати розумного 🤖 AI-помічника для будь-яких запитань\n\n"
+    "• 🧠 Відповідати як AI-помічник на довільні питання\n\n"
     "Починай із додавання запису або відкрий «📊 Статистика». Готовий? 🙂\n"
 )
 
@@ -565,94 +584,7 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ASK_NAME
     context.user_data["pending_name"] = name
     await update.message.reply_text("Оберіть валюту:", reply_markup=currency_pick_ikb("onb"))
-    return MAIN  # чекаємо callback onb:setcur:*
-
-# ===================== AI HELPER =====================
-def ai_headers():
-    return {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-SYSTEM_PROMPT = (
-    "Ти чемний україномовний фінансовий асистент. Відповідай коротко, по суті, "
-    "давай конкретні кроки та цифри. Якщо питання не про фінанси — теж відповідай, "
-    "але стисло та корисно."
-)
-
-def build_ai_payload(user_text: str) -> dict:
-    # універсальний формат для text-gen моделей (HuggingFace Inference)
-    prompt = f"<<SYS>>{SYSTEM_PROMPT}<</SYS>>\n\nКористувач: {user_text}\nАсистент:"
-    return {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 300,
-            "temperature": 0.6,
-            "top_p": 0.9,
-            "do_sample": True,
-            "return_full_text": False
-        }
-    }
-
-def parse_hf_output(resp_json) -> str:
-    """
-    HuggingFace inference for text-generation відповідає у вигляді
-    [
-      {"generated_text": "..."}    # або
-      {"summary_text": "..."}      # або інші ключі
-    ]
-    """
-    if isinstance(resp_json, list) and resp_json:
-        item = resp_json[0]
-        for k in ("generated_text", "summary_text"):
-            if k in item and isinstance(item[k], str):
-                return item[k].strip()
-    # інколи відповідає {"error": "..."} або {"estimated_time": ...}
-    if isinstance(resp_json, dict) and "error" in resp_json:
-        return f"⛔️ Помилка моделі: {resp_json.get('error')}"
-    return "Не зміг розпізнати відповідь моделі."
-
-async def ask_hf_inference(user_text: str) -> str:
-    if not HF_API_KEY:
-        return "⚠️ AI недоступний: не налаштовано HF_API_KEY у Railway."
-
-    payload = build_ai_payload(user_text)
-    try:
-        r = requests.post(HF_URL, headers=ai_headers(), data=json.dumps(payload), timeout=30)
-    except requests.exceptions.RequestException:
-        return "⚠️ Помилка підключення до AI (мережа)."
-
-    # часті коди
-    if r.status_code == 200:
-        try:
-            data = r.json()
-        except Exception:
-            return "⚠️ Несподіваний формат відповіді від AI."
-        text = parse_hf_output(data)
-        if not text or "estimated_time" in str(data):
-            # Якщо модель «засинає», інколи перший запит повертає estimated_time
-            # Спробуємо повтор через 2 сек.
-            time.sleep(2)
-            try:
-                r2 = requests.post(HF_URL, headers=ai_headers(), data=json.dumps(payload), timeout=30)
-                if r2.status_code == 200:
-                    text = parse_hf_output(r2.json())
-            except Exception:
-                pass
-        return text or "⚠️ Порожня відповідь від AI."
-    elif r.status_code == 401:
-        return "⚠️ Невірний або прострочений HF_API_KEY."
-    elif r.status_code == 403:
-        return "⚠️ Доступ заборонений для цієї моделі."
-    elif r.status_code == 404:
-        return "⚠️ Модель не знайдено або тимчасово недоступна."
-    elif r.status_code == 429:
-        return "⏳ Перевищено ліміт запитів. Спробуй через хвилинку."
-    elif r.status_code >= 500:
-        return "⚠️ Сервер моделі зараз недоступний."
-    else:
-        return f"⚠️ Помилка AI (HTTP {r.status_code})."
+    return MAIN
 
 # ===================== CALLBACK ROUTER =====================
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -661,12 +593,12 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     uid = update.effective_user.id
 
-    # -------- ГОЛОВНЕ МЕНЮ --------
+    # ГОЛОВНЕ МЕНЮ
     if data == "main:open":
         await send_main_menu(update, context, "🏠 Повернувся в головне меню")
         return MAIN
 
-    # -------- ОНБОРДИНГ: валюта --------
+    # ОНБОРДИНГ: валюта
     if data.startswith("onb:setcur:"):
         curx = data.split(":", 2)[2]
         name = context.user_data.get("pending_name", "Користувач")
@@ -675,7 +607,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("pending_name", None)
         return MAIN
 
-    # -------- ВИБІР ТИПУ (EXP/INC/INV) --------
+    # ТИП (ВИТРАТИ/ДОХОДИ/ІНВЕСТ)
     if data.startswith("type:"):
         code = data.split(":")[1]
         tname = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}[code]
@@ -684,7 +616,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(f"Обери категорію ({tname}):", reply_markup=categories_ikb(tname))
         return MAIN
 
-    # -------- КАТЕГОРІЇ --------
+    # КАТЕГОРІЇ
     if data == "back:main":
         await send_main_menu(update, context, "↩️ Повернувся на головне меню")
         return MAIN
@@ -698,13 +630,10 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat_name = cats[idx]
         context.user_data["cat_name"] = cat_name
         tname = context.user_data["tname"]
-        await q.edit_message_text(
-            f"Обери підкатегорію ({CATEGORY_EMOJI.get(cat_name,'')} {cat_name}):",
-            reply_markup=subcategories_ikb(tname, cat_name)
-        )
+        await q.edit_message_text(f"Обери підкатегорію ({CATEGORY_EMOJI.get(cat_name,'')} {cat_name}):", reply_markup=subcategories_ikb(tname, cat_name))
         return MAIN
 
-    # -------- ПІДКАТЕГОРІЇ --------
+    # ПІДКАТЕГОРІЇ
     if data == "back:cats":
         tname = context.user_data.get("tname", TYPES[0])
         await q.edit_message_text(f"Обери категорію ({tname}):", reply_markup=categories_ikb(tname))
@@ -729,7 +658,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AMOUNT
 
-    # -------- СТАТИСТИКА --------
+    # СТАТИСТИКА
     if data == "stats:open":
         await q.edit_message_text("Оберіть режим:", reply_markup=stat_mode_ikb())
         return MAIN
@@ -739,7 +668,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN
 
     if data.startswith("stats:mode:"):
-        mode = data.split(":")[2]  # day | mon
+        mode = data.split(":")[2]  # day|mon
         context.user_data["stat_mode"] = mode
         await q.edit_message_text("Оберіть рік:", reply_markup=years_ikb())
         return STAT_YEAR_SELECT
@@ -820,7 +749,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Що далі?", reply_markup=stats_actions_ikb())
         return MAIN
 
-    # -------- ПРОФІЛЬ --------
+    # ПРОФІЛЬ
     if data == "profile:open":
         txt, _ = profile_summary(uid)
         await q.edit_message_text(txt or "Профіль не знайдено", reply_markup=profile_menu_ikb())
@@ -857,15 +786,14 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_ikb())
         return MAIN
 
-    # -------- ГРА --------
+    # ВІКТОРИНА
     if data == "quiz:start":
         explain = (
             "🎮 *Фінансова грамотність — міні-тест*\n"
             "──────────────────────\n"
-            "• 20 коротких запитань з варіантами відповідей (A/B/C/D)\n"
-            "• Мета — перевірити себе без стресу\n"
-            "• В кінці — підсумок, бали і розбір помилок\n\n"
-            "Готовий? Клікай варіант відповіді, коли з’явиться перше питання 👇"
+            "• 20 коротких запитань (A/B/C/D)\n"
+            "• В кінці — бали + розбір помилок\n\n"
+            "Готовий? Зараз з’явиться перше питання 👇"
         )
         q_indexes = list(range(len(QUIZ_QUESTIONS_BASE)))
         random.shuffle(q_indexes)
@@ -879,8 +807,8 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("quiz:ans:"):
         parts = data.split(":")
-        qidx = int(parts[2])
-        choice = int(parts[3])
+        qidx = int(parts[2])   # позиція (0..19)
+        choice = int(parts[3]) # 0..3
 
         pos = context.user_data.get("quiz_pos", 0)
         if qidx != pos:
@@ -905,15 +833,15 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["quiz_pos"] = pos + 1
         return await quiz_ask_next(update, context)
 
-    # -------- AI --------
+    # AI-ПОМІЧНИК (кнопка з меню)
     if data == "ai:open":
-        msg = (
-            "🤖 *AI-помічник*\n"
-            "— універсальні відповіді на твої питання (фінанси, побут, ідеї тощо).\n"
-            "— на базі безкоштовного інференсу Hugging Face.\n\n"
-            "Напиши питання нижче 👇"
+        intro = (
+            "🧠 *AI-помічник*\n"
+            "Напиши будь-яке запитання (про фінанси, економію, ідеї бюджету тощо).\n"
+            "Натисни «🏠 Головне меню», щоб вийти."
         )
-        await q.edit_message_text(msg, parse_mode="Markdown", reply_markup=ikb([[("🏠 Головне меню", "main:open")]]))
+        await q.edit_message_text(intro, parse_mode="Markdown", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
+        # Переключаємось у стан очікування тексту від користувача
         return AI_ASK
 
     await q.answer("Невідома дія.", show_alert=True)
@@ -945,8 +873,8 @@ async def quiz_ask_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     base_idx = idx_list[pos]
     item = QUIZ_QUESTIONS_BASE[base_idx]
-    q_text = (f"❓ *Питання {pos+1}/{len(idx_list)}*\n{item['q']}\n\n" +
-              f"A) {item['opts'][0]}\nB) {item['opts'][1]}\nC) {item['opts'][2]}\nD) {item['opts'][3]}")
+    q_text = f"❓ *Питання {pos+1}/{len(idx_list)}*\n{item['q']}\n\n" + \
+             f"A) {item['opts'][0]}\nB) {item['opts'][1]}\nC) {item['opts'][2]}\nD) {item['opts'][3]}"
     await qobj.message.reply_text(q_text, parse_mode="Markdown", reply_markup=quiz_answer_ikb(pos))
     return QUIZ_ACTIVE
 
@@ -1004,66 +932,64 @@ async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
     return MAIN
 
-# AI: приймаємо текст питання і відповідаємо
-async def handle_ai_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_q = (update.message.text or "").strip()
-    if not user_q:
-        await update.message.reply_text("Напиши питання текстом 🙂")
+# === AI-помічник: приймаємо повідомлення користувача у стані AI_ASK ===
+async def handle_ai_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_msg = (update.message.text or "").strip()
+    if not user_msg:
+        await update.message.reply_text("Напиши питання 🙂", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
         return AI_ASK
-    thinking = await update.message.reply_text("⏳ Думаю над відповіддю…")
-    answer = await ask_hf_inference(user_q)
-    await thinking.edit_text(answer, disable_web_page_preview=True, reply_markup=ikb([[("🏠 Головне меню", "main:open")]]))
-    return AI_ASK  # залишаємося в режимі AI, щоб можна було задати ще
+    reply = ai_answer(user_msg)
+    # тримаєм відповідь акуратною
+    if len(reply) > 1200:
+        reply = reply[:1200] + "..."
+    await update.message.reply_text(f"🧠 Відповідь:\n{reply}", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
+    # залишаємося в AI_ASK, щоб можна було продовжувати діалог
+    return AI_ASK
+
+# ===================== START/ONBOARD TEXT =====================
+async def cmd_start_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # якщо користувач пише /start у середині діалогу
+    return await cmd_start(update, context)
 
 # ===================== APP =====================
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
-
-    # JobQueue: автооновлення курсів щохвилини
+    # Auto-оновлення курсів щохвилини
     app.job_queue.run_repeating(refresh_rates_job, interval=60, first=0)
 
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", cmd_start)],
         states={
-            ASK_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, save_name),
-                CallbackQueryHandler(on_cb)
-            ],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_name),
+                       CallbackQueryHandler(on_cb)],
 
             MAIN: [CallbackQueryHandler(on_cb)],
 
-            AMOUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount),
-                CallbackQueryHandler(on_cb)
-            ],
+            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount),
+                     CallbackQueryHandler(on_cb)],
 
-            COMMENT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_comment),
-                CallbackQueryHandler(on_cb)
-            ],
+            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_comment),
+                      CallbackQueryHandler(on_cb)],
 
             STAT_YEAR_SELECT: [CallbackQueryHandler(on_cb)],
             STAT_MONTH_SELECT: [CallbackQueryHandler(on_cb)],
             STAT_DAY_SELECT: [CallbackQueryHandler(on_cb)],
 
-            PROFILE_EDIT_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_edit_name),
-                CallbackQueryHandler(on_cb)
-            ],
+            PROFILE_EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_edit_name),
+                                CallbackQueryHandler(on_cb)],
 
             QUIZ_ACTIVE: [CallbackQueryHandler(on_cb)],
 
-            AI_ASK: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_question),
-                CallbackQueryHandler(on_cb)
-            ],
+            AI_ASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_text),
+                     CallbackQueryHandler(on_cb)],
         },
         fallbacks=[CallbackQueryHandler(on_cb)],
-        allow_reentry=True,
-        per_message=False,   # попереджає зайві варни в логаx ptb
+        allow_reentry=True
     )
 
     app.add_handler(conv)
+    # На випадок якщо користувач знову надішле /start під час інших станів
+    app.add_handler(CommandHandler("start", cmd_start_text))
     return app
 
 def main():
