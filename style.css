@@ -19,23 +19,25 @@ body {
 h1, h2 {
   color: #222;
   text-align: center;
+  margin-bottom: 20px;
 }
 
 /* Картинки у статтях */
 article img {
+  display: block;
   width: 100%;
-  max-width: 600px; /* Обмежуємо ширину */
-  max-height: 300px; /* Обмежуємо висоту */
-  object-fit: cover; /* Розумне обрізання картинки */
+  max-width: 600px; /* максимум ширини картинки */
+  max-height: 250px; /* обмеження висоти */
+  object-fit: cover;
   border-radius: 10px;
   margin: 0 auto 20px;
-  display: block; /* Центрування */
 }
 
 /* Текст у статті */
 article {
   font-size: 18px;
   line-height: 1.8;
+  text-align: justify;
 }
 
 /* Список */
@@ -57,4 +59,11 @@ nav a {
 
 nav a:hover {
   background: #0056b3;
+}
+
+/* Центрування контенту на великих екранах */
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
