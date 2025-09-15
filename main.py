@@ -99,6 +99,47 @@ CATEGORIES = {
     },
 }
 
+# емодзі + кольори для головних категорій (pie chart)
+CATEGORY_EMOJI = {
+    "Харчування": "🍔",
+    "Одяг та взуття": "👕",
+    "Оренда/житло": "🏠",
+    "Господарчі товари": "🧴",
+    "Дорога/подорожі": "🚌",
+    "Онлайн підписки": "📲",
+    "Поповнення мобільного": "📶",
+    "Розваги": "🎉",
+    "Vodafone": "📡",
+    "Крипта": "🪙",
+    "Зарядні пристрої": "🔌",
+    "Hub station": "🖥️",
+    "Акаунти": "👤",
+    "Купівля $": "💵",
+    "Зарплата": "💼",
+    "Переказ": "🔁",
+    "Інше": "➕",
+}
+CATEGORY_COLORS = {
+    "Харчування": "#FF9800",
+    "Одяг та взуття": "#3F51B5",
+    "Оренда/житло": "#009688",
+    "Господарчі товари": "#795548",
+    "Дорога/подорожі": "#4CAF50",
+    "Онлайн підписки": "#9C27B0",
+    "Поповнення мобільного": "#607D8B",
+    "Розваги": "#673AB7",
+    "Vodafone": "#E91E63",
+    # інвест/доходи на всяк:
+    "Крипта": "#FBC02D",
+    "Зарядні пристрої": "#8BC34A",
+    "Hub station": "#00BCD4",
+    "Акаунти": "#CDDC39",
+    "Купівля $": "#FF5722",
+    "Зарплата": "#2196F3",
+    "Переказ": "#00ACC1",
+    "Інше": "#9E9E9E",
+}
+
 TIPS = [
     "Не заощаджуй те, що залишилось після витрат — витрачай те, що залишилось після заощаджень. — Уоррен Баффет",
     "Бюджет — це те, що змушує ваші гроші робити те, що ви хочете. — Дейв Ремзі",
@@ -113,17 +154,122 @@ TIPS = [
     "Гроші люблять тишу. Приймай рішення раціонально, не імпульсивно."
 ]
 
+# ===================== QUIZ (20 питань, рандом) =====================
+QUIZ_QUESTIONS_BASE = [
+    {
+        "q": "Який рекомендований мінімальний розмір фінансової подушки безпеки?",
+        "opts": ["1 місяць витрат", "3–6 місяців витрат", "12 місяців витрат", "2 тижні витрат"],
+        "ans": 1
+    },
+    {
+        "q": "Що таке правило «Плати спочатку собі»?",
+        "opts": ["Плати борги перш ніж витрачати", "Купи потрібне — решта в заощадження", "Спершу відкладай, а потім витрачай", "Спершу оплати підписки"],
+        "ans": 2
+    },
+    {
+        "q": "Яке твердження про диверсифікацію вірне?",
+        "opts": ["Інвестувати в один актив — безпечніше", "Розподіл інвестицій зменшує ризик", "Диверсифікація знижує прибуток до нуля", "Це про економію, а не інвестиції"],
+        "ans": 1
+    },
+    {
+        "q": "Що таке складний процент?",
+        "opts": ["Відсоток лише на початкову суму", "Відсоток на відсоток", "Плата банку за обслуговування", "Разова комісія брокера"],
+        "ans": 1
+    },
+    {
+        "q": "Який відсоток доходу класти в заощадження — базова порада?",
+        "opts": ["1–5%", "10–20%", "30–40%", "50%+"],
+        "ans": 1
+    },
+    {
+        "q": "Що робити перед інвестиціями?",
+        "opts": ["Оформити кредитну картку", "Скласти подушку безпеки", "Купити нерухомість", "Нічого не потрібно"],
+        "ans": 1
+    },
+    {
+        "q": "Що таке бюджет 50/30/20?",
+        "opts": ["50% інвестиції, 30% борги, 20% витрати", "50% потреби, 30% бажання, 20% заощадження", "50% бажання, 30% потреби, 20% борги", "50% витрати, 50% інвестиції"],
+        "ans": 1
+    },
+    {
+        "q": "Який ризик у “гарячих” криптопроєктах?",
+        "opts": ["Гарантований прибуток", "Нульовий ризик", "Висока волатильність і ризик втрат", "Державні гарантії"],
+        "ans": 2
+    },
+    {
+        "q": "Що ефективніше проти імпульсивних покупок?",
+        "opts": ["Купувати вночі", "Правило 24 годин паузи", "Оплата готівкою", "Позика в друга"],
+        "ans": 1
+    },
+    {
+        "q": "Який інструмент найкраще фіксує реальні витрати щодня?",
+        "opts": ["Пам’ять", "Щомісячний звіт", "Записи у боті/додатку", "Раз на пів року"],
+        "ans": 2
+    },
+    {
+        "q": "Що зменшує боргове навантаження швидше?",
+        "opts": ["Платити мінімалки", "Сніжний ком: з найменших боргів", "Взяти новий кредит", "Ігнорувати борги"],
+        "ans": 1
+    },
+    {
+        "q": "Що означає «жити нижче своїх можливостей»?",
+        "opts": ["Витрачати більше ніж заробляєш", "Завжди купувати найдешевше", "Витрачати менше доходу та інвестувати різницю", "Жити без комфорту"],
+        "ans": 2
+    },
+    {
+        "q": "Який головний ризик збереження грошей лише у готівці?",
+        "opts": ["Зручність", "Інфляція з’їдає купівельну спроможність", "Високий відсоток", "Державні гарантії"],
+        "ans": 1
+    },
+    {
+        "q": "Що важливіше при довгостроковому інвестуванні?",
+        "opts": ["Час на ринку", "Таймінг ринку", "Ідеальна точка входу", "Щоденна купівля-продаж"],
+        "ans": 0
+    },
+    {
+        "q": "Що з цього — актив?",
+        "opts": ["Автомобіль, що щомісяця потребує витрат", "Кафе-кава кожного дня", "Акції/фонди, що генерують дохід", "Підписка на серіали"],
+        "ans": 2
+    },
+    {
+        "q": "Оптимальна кількість валют у заощадженнях?",
+        "opts": ["Лише одна", "2–3 валюти", "10 валют", "Не має значення"],
+        "ans": 1
+    },
+    {
+        "q": "Що таке «резерви на непередбачувані витрати»?",
+        "opts": ["Витрати на розваги", "Гроші на бажання", "Фонд для поломок/лікування/штрафів", "Податкова пільга"],
+        "ans": 2
+    },
+    {
+        "q": "Чому автоматичні перекази в заощадження — це добре?",
+        "opts": ["Бо незручно", "Зменшує дисципліну", "Знімає зусилля: стабільність і звичка", "Не має сенсу"],
+        "ans": 2
+    },
+    {
+        "q": "Навіщо відстежувати підписки?",
+        "opts": ["Щоб не пропустити серіал", "Щоб не переплачувати щомісяця непомітно", "Щоб заробляти на підписках", "Щоб платити штрафи"],
+        "ans": 1
+    },
+    {
+        "q": "Коли починати інвестувати?",
+        "opts": ["Коли буде багато грошей", "Одразу після створення подушки", "Ніколи", "Лише в кризу"],
+        "ans": 1
+    },
+]
+
 # ===================== STATES =====================
 (
-    ASK_NAME,  # очікуємо ім’я
-    MAIN,      # головний екран
-    AMOUNT,    # очікуємо суму
-    COMMENT,   # очікуємо коментар
-    STAT_DAY,  # очікуємо вибір дня (inline)
-    STAT_MONTH_SELECT,  # вибір місяця (inline)
-    STAT_YEAR_SELECT,   # вибір року (inline)
-    PROFILE_EDIT_NAME,  # редагування імені (text)
-) = range(8)
+    ASK_NAME,  # онбординг: ім’я
+    MAIN,      # головне меню/стан callback
+    AMOUNT,    # ввід суми
+    COMMENT,   # ввід коментаря
+    STAT_YEAR_SELECT,
+    STAT_MONTH_SELECT,
+    STAT_DAY_SELECT,
+    PROFILE_EDIT_NAME,
+    QUIZ_ACTIVE,  # гра активна — кліки A/B/C/D
+) = range(9)
 
 # ===================== RATES (NBU + CoinGecko) =====================
 async def refresh_rates_job(context: ContextTypes.DEFAULT_TYPE):
@@ -183,7 +329,7 @@ def rates_block(bot_data: dict) -> str:
         f"Ξ Ефір: ${fmtd(eth)} ≈ {fmtn(eth_uah)} грн"
     )
 
-# ===================== HELPERS =====================
+# ===================== HELPERS (DB) =====================
 def get_user(user_id: int):
     cur.execute("SELECT user_id, name, currency, created_at FROM users WHERE user_id=?", (user_id,))
     return cur.fetchone()
@@ -216,6 +362,7 @@ def fetch_month(user_id, y, m):
                 (user_id, str(y), f"{m:02d}"))
     return cur.fetchall()
 
+# ===================== HELPERS (TEXT/PDF/CHARTS) =====================
 def build_stats_text(rows, title):
     if not rows:
         return f"{title}\n📭 Немає записів."
@@ -226,7 +373,7 @@ def build_stats_text(rows, title):
         if t not in sums:
             sums[t] = 0.0
         sums[t] += a
-        lines.append(f"• {t} | {c}/{s or '-'} — {a:.2f} {curx} ({com or '-'})")
+        lines.append(f"• {t} | {CATEGORY_EMOJI.get(c, '')} {c}/{s or '-'} — {a:.2f} {curx} ({com or '-'})")
     total = "\n".join([f"{k}: {v:.2f}" for k, v in sums.items()])
     tip = random.choice(TIPS)
     return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{total}\n\n💡 {tip}"
@@ -242,7 +389,7 @@ def make_pdf(rows, title, filename):
     for t, c, s, a, curx, com in rows:
         a = float(a or 0)
         totals[t] += a
-        data.append([t, c, s or "-", f"{a:.2f}", curx, com or "-"])
+        data.append([t, f"{CATEGORY_EMOJI.get(c,'')} {c}", s or "-", f"{a:.2f}", curx, com or "-"])
     data.append(["", "", "", "", "", ""])
     for k in ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]:
         data.append([k, "", "", f"{totals[k]:.2f}", "", ""])
@@ -265,10 +412,11 @@ def make_pie_expenses(rows, title, path_png):
             sums_by_cat[c] += float(a or 0)
     if not sums_by_cat:
         return False
-    labels = list(sums_by_cat.keys())
+    labels = [f"{CATEGORY_EMOJI.get(k,'')} {k}" for k in sums_by_cat.keys()]
     values = list(sums_by_cat.values())
+    colors_list = [CATEGORY_COLORS.get(k, "#999999") for k in sums_by_cat.keys()]
     plt.figure()
-    plt.pie(values, labels=labels, autopct="%1.1f%%")
+    plt.pie(values, labels=labels, autopct="%1.1f%%", colors=colors_list)
     plt.title(title)
     plt.tight_layout()
     plt.savefig(path_png)
@@ -306,23 +454,19 @@ def profile_summary(user_id):
 def ikb(rows):
     return InlineKeyboardMarkup([[InlineKeyboardButton(t, callback_data=d) for (t, d) in row] for row in rows])
 
-def kb_home_back(back_cb: str):
-    return ikb([
-        [("↩️ Назад", back_cb), ("🏠 Головне меню", "main:open")]
-    ])
-
 def main_menu_ikb():
     return ikb([
         [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
         [("📈 Інвестиції", "type:inv"), ("📊 Статистика", "stats:open")],
-        [("👤 Мій профіль", "profile:open")]
+        [("🎮 Гра", "quiz:start"), ("👤 Мій профіль", "profile:open")]
     ])
 
 def categories_ikb(tname):
     cats = list(CATEGORIES[tname].keys())
     rows, row = [], []
     for i, c in enumerate(cats):
-        row.append((c, f"cat:{i}"))
+        title = f"{CATEGORY_EMOJI.get(c,'')} {c}"
+        row.append((title, f"cat:{i}"))
         if len(row) == 2:
             rows.append(row); row = []
     if row: rows.append(row)
@@ -391,17 +535,24 @@ def profile_menu_ikb():
     ])
 
 def currency_pick_ikb(prefix: str):
-    # prefix: onb (онбординг) або prof (профіль)
     return ikb([
         [("грн", f"{prefix}:setcur:грн"), ("$", f"{prefix}:setcur:$")],
         [("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]
+    ])
+
+def quiz_answer_ikb(q_idx: int):
+    # A/B/C/D з callback
+    return ikb([
+        [("A", f"quiz:ans:{q_idx}:0"), ("B", f"quiz:ans:{q_idx}:1")],
+        [("C", f"quiz:ans:{q_idx}:2"), ("D", f"quiz:ans:{q_idx}:3")],
+        [("🏠 Головне меню", "main:open")]
     ])
 
 # ===================== INTRO =====================
 INTRO_TEXT = (
     "━━━━━━━━━━━━━━━━━━━━\n"
     "🤖 ФІНАНСОВИЙ БОТ — ТВІЙ ОСОБИСТИЙ КАБІНЕТ\n"
-    "━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━\n\n"
     "Що вмію:\n"
     "• Записувати 💸 витрати, 💰 доходи, 📈 інвестиції\n"
     "• Показувати статистику за день або місяць (з деталями)\n"
@@ -411,7 +562,7 @@ INTRO_TEXT = (
     "Починай із додавання запису або відкрий «📊 Статистика». Готовий? 🙂\n"
 )
 
-# ===================== SEND MAIN =====================
+# ===================== MAIN MENU SENDER =====================
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str | None = None):
     text = (greeting or "🏠 Головне меню") + "\n\n" + rates_block(context.application.bot_data)
     if update.callback_query:
@@ -435,7 +586,7 @@ async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ASK_NAME
     context.user_data["pending_name"] = name
     await update.message.reply_text("Оберіть валюту:", reply_markup=currency_pick_ikb("onb"))
-    return MAIN  # далі чекаємо callback onb:setcur:*
+    return MAIN  # чекаємо callback onb:setcur:*
 
 # ===================== CALLBACK ROUTER =====================
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -481,7 +632,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat_name = cats[idx]
         context.user_data["cat_name"] = cat_name
         tname = context.user_data["tname"]
-        await q.edit_message_text(f"Обери підкатегорію ({cat_name}):", reply_markup=subcategories_ikb(tname, cat_name))
+        await q.edit_message_text(f"Обери підкатегорію ({CATEGORY_EMOJI.get(cat_name,'')} {cat_name}):", reply_markup=subcategories_ikb(tname, cat_name))
         return MAIN
 
     # -------- ПІДКАТЕГОРІЇ --------
@@ -506,7 +657,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # просимо суму
         await q.edit_message_text(
             "Введи суму (наприклад 123.45):",
-            reply_markup=kb_home_back("back:cats")
+            reply_markup=ikb([[("↩️ Назад", "back:cats"), ("🏠 Головне меню", "main:open")]])
         )
         return AMOUNT
 
@@ -536,7 +687,6 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STAT_MONTH_SELECT
 
     if data == "back:month":
-        y = context.user_data.get("year", datetime.now().year)
         await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
         return STAT_MONTH_SELECT
 
@@ -546,7 +696,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get("stat_mode") == "day":
             y = context.user_data["year"]
             await q.edit_message_text("Оберіть день:", reply_markup=days_ikb(y, m))
-            return STAT_DAY
+            return STAT_DAY_SELECT
         # за місяць
         rows = fetch_month(uid, context.user_data["year"], m)
         title = f"📆 {MONTHS[m]} {context.user_data['year']}"
@@ -555,13 +705,12 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN
 
     if data == "back:statselect":
-        # повернутися до вибору дня або місяця
         mode = context.user_data.get("stat_mode")
         if mode == "day":
             y = context.user_data.get("year", datetime.now().year)
             m = context.user_data.get("month", datetime.now().month)
             await q.edit_message_text("Оберіть день:", reply_markup=days_ikb(y, m))
-            return STAT_DAY
+            return STAT_DAY_SELECT
         else:
             await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
             return STAT_MONTH_SELECT
@@ -611,7 +760,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN
 
     if data == "profile:editname":
-        await q.edit_message_text("Введи нове ім’я:", reply_markup=kb_home_back("back:main"))
+        await q.edit_message_text("Введи нове ім’я:", reply_markup=ikb([[("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]]))
         return PROFILE_EDIT_NAME
 
     if data == "profile:editcur":
@@ -641,9 +790,100 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_ikb())
         return MAIN
 
+    # -------- ГРА --------
+    if data == "quiz:start":
+        # Пояснення гри
+        explain = (
+            "🎮 *Фінансова грамотність — міні-тест*\n"
+            "──────────────────────\n"
+            "• 20 коротких запитань з варіантами відповідей (A/B/C/D)\n"
+            "• Мета — перевірити себе без стресу\n"
+            "• В кінці — підсумок, бали і розбір помилок\n\n"
+            "Готовий? Натисни будь-яку відповідь, коли з’явиться перше питання 👇"
+        )
+        # сформуємо рандомні 20
+        q_indexes = list(range(len(QUIZ_QUESTIONS_BASE)))
+        random.shuffle(q_indexes)
+        q_indexes = q_indexes[:20]
+        context.user_data["quiz_idx_list"] = q_indexes
+        context.user_data["quiz_pos"] = 0
+        context.user_data["quiz_score"] = 0
+        context.user_data["quiz_mistakes"] = []  # списки (qtxt, chosen_letter, correct_letter)
+        # показати перше питання
+        await q.edit_message_text(explain, parse_mode="Markdown")
+        return await quiz_ask_next(update, context)
+
+    if data.startswith("quiz:ans:"):
+        parts = data.split(":")
+        qidx = int(parts[2])   # позиція у поточній грі (0..19)
+        choice = int(parts[3]) # 0..3
+
+        pos = context.user_data.get("quiz_pos", 0)
+        # захист: якщо натисли стару кнопку — ігноруємо
+        if qidx != pos:
+            await q.answer("Відповідь уже прийнята, рухаємось далі…")
+            return QUIZ_ACTIVE
+
+        # отримуємо поточне питання
+        idx_list = context.user_data.get("quiz_idx_list", [])
+        base_idx = idx_list[pos]
+        item = QUIZ_QUESTIONS_BASE[base_idx]
+
+        correct = item["ans"]
+        letters = ["A", "B", "C", "D"]
+        if choice == correct:
+            context.user_data["quiz_score"] = context.user_data.get("quiz_score", 0) + 1
+            await q.answer("✅ Правильно!")
+        else:
+            context.user_data["quiz_mistakes"].append(
+                (item["q"], letters[choice], letters[correct], item["opts"][correct])
+            )
+            await q.answer("❌ Неправильно")
+
+        # рухаємось далі
+        context.user_data["quiz_pos"] = pos + 1
+        return await quiz_ask_next(update, context)
+
     # -------- РЕЗЕРВ --------
     await q.answer("Невідома дія.", show_alert=True)
     return MAIN
+
+async def quiz_ask_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показати наступне питання або фінальний результат."""
+    qobj = update.callback_query
+    pos = context.user_data.get("quiz_pos", 0)
+    idx_list = context.user_data.get("quiz_idx_list", [])
+    if pos >= len(idx_list):
+        # фінал
+        score = context.user_data.get("quiz_score", 0)
+        mistakes = context.user_data.get("quiz_mistakes", [])
+        total = len(idx_list)
+        # формуємо розбір
+        lines = [f"🎯 *Результат*: {score}/{total} правильних\n"]
+        if mistakes:
+            lines.append("🧾 Де ти помилився:")
+            for (qt, ch, corr, corr_text) in mistakes:
+                lines.append(f"• {qt}\n   Твоя відповідь: {ch}\n   Правильна: {corr} — {corr_text}")
+        else:
+            lines.append("Ідеально! Без жодної помилки 🔥")
+        # додамо цитату
+        lines.append("\n💡 " + random.choice(TIPS))
+        text = "\n".join(lines)
+        await qobj.edit_message_text(text, parse_mode="Markdown", reply_markup=ikb([[("🏠 Головне меню", "main:open")]]))
+        # почистимо стейт гри
+        context.user_data.pop("quiz_idx_list", None)
+        context.user_data.pop("quiz_pos", None)
+        context.user_data.pop("quiz_score", None)
+        context.user_data.pop("quiz_mistakes", None)
+        return MAIN
+
+    # виводимо питання pos
+    base_idx = idx_list[pos]
+    item = QUIZ_QUESTIONS_BASE[base_idx]
+    q_text = f"❓ *Питання {pos+1}/{len(idx_list)}*\n{item['q']}\n\n" + \
+             f"A) {item['opts'][0]}\nB) {item['opts'][1]}\nC) {item['opts'][2]}\nD) {item['opts'][3]}"
+    await qobj.message.reply_text(q_text, parse_mode="Markdown", reply_markup=quiz_answer_ikb(pos))
+    return QUIZ_ACTIVE
 
 # ===================== TEXT INPUT HANDLERS =====================
 async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -651,10 +891,16 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         amount = float(text)
     except ValueError:
-        await update.message.reply_text("Сума має бути числом. Спробуй ще раз:", reply_markup=kb_home_back("back:cats"))
+        await update.message.reply_text(
+            "Сума має бути числом. Спробуй ще раз:",
+            reply_markup=ikb([[("↩️ Назад", "back:cats"), ("🏠 Головне меню", "main:open")]])
+        )
         return AMOUNT
     context.user_data["amount"] = amount
-    await update.message.reply_text("Додай коментар або '-' якщо без:", reply_markup=kb_home_back("back:cats"))
+    await update.message.reply_text(
+        "Додай коментар або '-' якщо без:",
+        reply_markup=ikb([[("↩️ Назад", "back:cats"), ("🏠 Головне меню", "main:open")]])
+    )
     return COMMENT
 
 async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -676,14 +922,16 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_tx(uid, tname, cat, sub, amount, currency, comment, date_str)
     context.user_data.clear()
     await send_main_menu(update, context,
-        f"✅ Записано: {tname} → {cat} → {sub or '-'}\nСума: {amount:.2f} {currency}\nДата: {date_str}"
+        f"✅ Записано: {tname} → {CATEGORY_EMOJI.get(cat,'')} {cat} → {sub or '-'}\n"
+        f"Сума: {amount:.2f} {currency}\nДата: {date_str}"
     )
     return MAIN
 
 async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = (update.message.text or "").strip()
     if not name:
-        await update.message.reply_text("Введи коректне ім’я 🙂", reply_markup=kb_home_back("back:main"))
+        await update.message.reply_text("Введи коректне ім’я 🙂",
+                                        reply_markup=ikb([[("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]]))
         return PROFILE_EDIT_NAME
     cur.execute("UPDATE users SET name=? WHERE user_id=?", (name, update.effective_user.id))
     conn.commit()
@@ -691,14 +939,9 @@ async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
     return MAIN
 
-# ===================== ERROR-SAFE BACK FROM TEXT =====================
-# Якщо під час вводу тексту натиснули «Головне меню» чи «Назад» (inline),
-# це обробляється в on_cb() відповідними callback'ами.
-
 # ===================== APP =====================
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
-
     # JobQueue: автооновлення курсів щохвилини
     app.job_queue.run_repeating(refresh_rates_job, interval=60, first=0)
 
@@ -707,16 +950,23 @@ def build_app():
         states={
             ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_name),
                        CallbackQueryHandler(on_cb)],
+
             MAIN: [CallbackQueryHandler(on_cb)],
+
             AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount),
                      CallbackQueryHandler(on_cb)],
+
             COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_comment),
                       CallbackQueryHandler(on_cb)],
+
             STAT_YEAR_SELECT: [CallbackQueryHandler(on_cb)],
             STAT_MONTH_SELECT: [CallbackQueryHandler(on_cb)],
-            STAT_DAY: [CallbackQueryHandler(on_cb)],
+            STAT_DAY_SELECT: [CallbackQueryHandler(on_cb)],
+
             PROFILE_EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_edit_name),
                                 CallbackQueryHandler(on_cb)],
+
+            QUIZ_ACTIVE: [CallbackQueryHandler(on_cb)]
         },
         fallbacks=[CallbackQueryHandler(on_cb)],
         allow_reentry=True
