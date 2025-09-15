@@ -5,53 +5,122 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Фінансовий блог</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #0c1f1c, #1f3a38);
+      color: #fff;
+    }
+
+    header {
+      text-align: center;
+      padding: 20px;
+      background: #0c1f1c;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    p {
+      margin: 5px 0 20px;
+      font-size: 1.2rem;
+      color: #ddd;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1f3a38;
+      border-radius: 15px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      text-align: center;
+      transition: transform 0.3s;
+    }
+
+    .card img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+    }
+
+    .card h3 {
+      margin: 10px 0;
+      font-size: 1.2rem;
+      color: #fff;
+    }
+
+    .card p {
+      padding: 0 10px;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+
+    .card button {
+      margin: 15px 0 20px;
+      padding: 10px 20px;
+      background: #00c853;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .card button:hover {
+      background: #009624;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+    }
+  </style>
 </head>
 <body>
   <header>
     <h1>Фінансовий блог</h1>
     <p>Поради про фінанси, інвестиції, економію та стабільність</p>
   </header>
-
-  <main class="cards">
-    <!-- Фінансова грамотність -->
+  <section class="cards">
     <div class="card">
-      <img src="https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=800&q=80" alt="Фінансова грамотність">
-      <h2>Фінансова грамотність</h2>
+      <img src="https://images.unsplash.com/photo-1605902711622-cfb43c4437b5" alt="Фінансова грамотність">
+      <h3>Фінансова грамотність</h3>
       <p>Розберіться, як працюють гроші, щоб жити впевнено та вільно.</p>
-      <a href="article1.html" class="btn">Читати</a>
+      <a href="article1.html"><button>Читати</button></a>
     </div>
-
-    <!-- Як планувати бюджет ефективно -->
     <div class="card">
-      <img src="https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80" alt="Планування бюджету">
-      <h2>Як планувати бюджет ефективно</h2>
+      <img src="https://images.unsplash.com/photo-1553729459-efe14ef6055d" alt="Бюджетування">
+      <h3>Як планувати бюджет ефективно</h3>
       <p>Дізнайтеся, як правильно розподіляти витрати та створити фінансову дисципліну.</p>
-      <a href="article2.html" class="btn">Читати</a>
+      <a href="article2.html"><button>Читати</button></a>
     </div>
-
-    <!-- Інвестування для початківців -->
     <div class="card">
-      <img src="https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&w=800&q=80" alt="Інвестування">
-      <h2>Інвестування для початківців</h2>
-      <p>Дізнайтеся, як інвестувати без великих ризиків.</p>
-      <a href="article3.html" class="btn">Читати</a>
+      <img src="https://images.unsplash.com/photo-1581092795360-fd1ca04f0952" alt="Інвестиції">
+      <h3>Інвестування для початківців</h3>
+      <p>Почніть інвестувати без великих ризиків.</p>
+      <a href="article3.html"><button>Читати</button></a>
     </div>
-
-    <!-- Фінансова подушка -->
     <div class="card">
-      <img src="https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80" alt="Фінансова подушка">
-      <h2>Фінансова подушка</h2>
+      <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0" alt="Фінансова подушка">
+      <h3>Фінансова подушка</h3>
       <p>Стратегія фінансового захисту для будь-кого.</p>
-      <a href="article4.html" class="btn">Читати</a>
+      <a href="article4.html"><button>Читати</button></a>
     </div>
-
-    <!-- Топ поради для економії грошей -->
     <div class="card">
-      <img src="https://images.unsplash.com/photo-1600880292089-90a7e086ee0c?auto=format&fit=crop&w=800&q=80" alt="Економія грошей">
-      <h2>Топ поради для економії грошей</h2>
-      <p>Лайфхаки, як зекономити гроші і не втратити якість життя.</p>
-      <a href="article5.html" class="btn">Читати</a>
+      <img src="https://images.unsplash.com/photo-1591696331119-85889d94b579" alt="Економія грошей">
+      <h3>Топ поради для економії грошей</h3>
+      <p>Лайфхаки, як економити гроші і не втратити якість життя.</p>
+      <a href="article5.html"><button>Читати</button></a>
     </div>
-  </main>
+  </section>
 </body>
 </html>
