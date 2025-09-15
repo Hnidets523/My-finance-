@@ -12,7 +12,7 @@ from telegram.ext import (
     MessageHandler, ContextTypes, ConversationHandler, filters
 )
 
-# -------- PDF --------
+# PDF
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
@@ -21,7 +21,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 
 # ========= CONFIG =========
 BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
-ONLY_USER_ID = None  # за потреби вкажи свій Telegram ID
+ONLY_USER_ID = None  # Можна обмежити бота своїм ID
 
 TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
 CURRENCIES = {"UAH": "грн", "USD": "$"}
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 conn.commit()
 
 
-# ========= STATES (Enum) =========
+# ========= STATES =========
 class S(Enum):
     TYPE = auto()
     CATEGORY = auto()
@@ -262,7 +262,7 @@ def allowed(user_id: int) -> bool:
     return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
 
 
-# ========= ENTRY / MENU =========
+# ========= COMMANDS =========
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not allowed(update.effective_user.id):
         await update.message.reply_text("⛔ Доступ обмежено.")
@@ -270,42 +270,40 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     txt = (
         "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n\n"
-        "Натискай кнопки нижче.\n"
         "Засновник: @hnidets011"
     )
     await update.message.reply_text(txt, reply_markup=main_menu_kb())
     return S.TYPE
 
 
-# ========= CALLBACK ROUTER (усі inline-кнопки тут) =========
+# ========= CALLBACK =========
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     data = q.data
     log.info("cb: %s", data)
 
-    # ---- головне меню
+    # Головне меню
     if data.startswith("type:"):
         code = data.split(":")[1]
         tname = TYPE_CODES[code]
         context.user_data.clear()
         context.user_data["type"] = tname
-        # збережемо список категорій, щоб працювати по індексах
         context.user_data["cat_list"] = list(CATEGORIES[tname].keys())
         await q.message.reply_text("Вибери категорію:", reply_markup=categories_kb(tname))
         return S.CATEGORY
 
     if data == "back:main":
-        await q.message.reply_text("Головне меню:", reply_markup=main_menu_kb())
+        await q.message.reply_text("Меню:", reply_markup=main_menu_kb())
         return S.TYPE
 
-    # ---- категорії / підкатегорії
+    # Категорії
     if data.startswith("cat:"):
         idx = int(data.split(":")[1])
         tname = context.user_data.get("type")
         cats = context.user_data.get("cat_list", [])
         if idx < 0 or idx >= len(cats):
-            await q.message.reply_text("Некоректна категорія. Обери ще раз:", reply_markup=categories_kb(tname))
+            await q.message.reply_text("Некоректна категорія.")
             return S.CATEGORY
         cat_name = cats[idx]
         context.user_data["category"] = cat_name
@@ -325,37 +323,36 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return S.CATEGORY
 
     if data.startswith("sub:"):
-        tname = context.user_data.get("type")
         if data == "sub:none":
             context.user_data["subcategory"] = None
         else:
             idx = int(data.split(":")[1])
             subs = context.user_data.get("sub_list", [])
             if idx < 0 or idx >= len(subs):
-                await q.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(tname, context.user_data["category"]))
+                await q.message.reply_text("Некоректна підкатегорія.")
                 return S.SUBCATEGORY
             context.user_data["subcategory"] = subs[idx]
         await q.message.reply_text("Введи суму (наприклад 123.45):")
         return S.AMOUNT
 
-    # ---- валюта (inline)
+    # Валюта
     if data == "back:amount":
         await q.message.reply_text("Введи суму ще раз:")
         return S.AMOUNT
 
     if data.startswith("cur:"):
-        code = data.split(":")[1]  # UAH / USD
+        code = data.split(":")[1]
         context.user_data["currency"] = CURRENCIES[code]
-        await q.message.reply_text("📝 Додай коментар або напиши '-' якщо без:")
+        await q.message.reply_text("📝 Додай коментар або '-' якщо без:")
         return S.COMMENT
 
-    # ---- Статистика
+    # Статистика
     if data == "stats:open" or data == "back:stats":
         await q.message.reply_text("Оберіть режим:", reply_markup=stats_mode_kb())
         return S.STATS_MODE
 
     if data.startswith("stats:mode:"):
-        mode = data.split(":")[2]  # month/day
+        mode = data.split(":")[2]
         context.user_data["stats_mode"] = mode
         await q.message.reply_text("Оберіть рік:", reply_markup=years_kb())
         return S.YEAR
@@ -375,13 +372,13 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return S.MONTH
 
     if data.startswith("stats:month:"):
-        month = data.split(":")[2]  # "01".."12"
+        month = data.split(":")[2]
         context.user_data["month"] = month
         if context.user_data.get("stats_mode") == "month":
             text, tx = stats_text(update.effective_user.id, context.user_data["year"], month)
             context.user_data["tx"] = tx
             context.user_data["day"] = None
-            kb = ikb([[("📄 Завантажити PDF-звіт", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+            kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
             await q.message.reply_text(text, reply_markup=kb)
             return S.PDF
         else:
@@ -393,7 +390,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["day"] = day
         text, tx = stats_text(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
         context.user_data["tx"] = tx
-        kb = ikb([[("📄 Завантажити PDF-звіт", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+        kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
         await q.message.reply_text(text, reply_markup=kb)
         return S.PDF
 
@@ -414,102 +411,9 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("✅ Готово", reply_markup=stats_mode_kb())
         return S.STATS_MODE
 
-    # на всі інші випадки
-    await q.message.reply_text("Не впізнав дію. Повертаюсь у меню.", reply_markup=main_menu_kb())
+    await q.message.reply_text("Невідома дія. Повертаюсь у меню:", reply_markup=main_menu_kb())
     return S.TYPE
 
 
-# ========= TEXT HANDLERS (сума/коментар) =========
-async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (update.message.text or "").replace(",", ".").strip()
-    try:
-        amount = float(text)
-    except Exception:
-        await update.message.reply_text("Сума має бути числом. Приклад: 123.45")
-        return S.AMOUNT
-    context.user_data["amount"] = amount
-    await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
-    return S.CURRENCY
-
-
-async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comment = update.message.text.strip()
-    if comment == "-":
-        comment = None
-
-    ud = context.user_data
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    save_tx(
-        update.effective_user.id,
-        ud["type"],
-        ud["category"],
-        ud.get("subcategory"),
-        ud["amount"],
-        ud["currency"],
-        comment,
-        date_str
-    )
-    await update.message.reply_text(
-        "✅ Записано:\n"
-        f"{ud['type']} → {ud['category']} → {ud.get('subcategory','-')}\n"
-        f"Сума: {ud['amount']} {ud['currency']}\n"
-        f"Дата: {date_str}\n"
-        f"Коментар: {comment or '-'}"
-    )
-    ud.clear()
-    await update.message.reply_text("Меню:", reply_markup=main_menu_kb())
-    return S.TYPE
-
-
-# ========= CANCEL / FALLBACK =========
-async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("Скасовано. Меню:", reply_markup=main_menu_kb())
-    return S.TYPE
-
-
-async def on_unexpected_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # якщо раптом текст прилетів у “клік-сценах” — просимо натиснути кнопку
-    await update.message.reply_text("Будь ласка, користуйся кнопками нижче 👇", reply_markup=main_menu_kb())
-    return S.TYPE
-
-
-# ========= APP =========
-def build_app():
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    conv = ConversationHandler(
-        entry_points=[CommandHandler("start", cmd_start)],
-        states={
-            # усі inline-натискання
-            S.TYPE: [CallbackQueryHandler(on_cb)],
-            S.CATEGORY: [CallbackQueryHandler(on_cb)],
-            S.SUBCATEGORY: [CallbackQueryHandler(on_cb)],
-            S.CURRENCY: [CallbackQueryHandler(on_cb)],
-            S.STATS_MODE: [CallbackQueryHandler(on_cb)],
-            S.YEAR: [CallbackQueryHandler(on_cb)],
-            S.MONTH: [CallbackQueryHandler(on_cb)],
-            S.DAY: [CallbackQueryHandler(on_cb)],
-            S.PDF: [CallbackQueryHandler(on_cb)],
-
-            # текстові введення
-            S.AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_amount)],
-            S.COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_comment)],
-        },
-        fallbacks=[CommandHandler("cancel", cmd_cancel)],
-        allow_reentry=True,
-    )
-
-    # глобальний “ловець” текстів поза сценарієм
-    app.add_handler(conv)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_unexpected_text))
-    return app
-
-
-def main():
-    app = build_app()
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
+# ========= TEXT INPUT =========
+async def on_amount(update: Update, context: ContextTypes.DEFAULT
