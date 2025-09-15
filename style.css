@@ -1,83 +1,116 @@
-/* Загальний стиль */
+/* Загальні стилі */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background-color: #0f2027;
-  color: #fff;
+  background-color: #0d1b1e;
+  color: #f1f1f1;
+  line-height: 1.6;
 }
 
-header {
-  text-align: center;
-  padding: 40px 20px;
-  background: linear-gradient(145deg, #0f2027, #203a43, #2c5364);
-}
-
-header h1 {
-  margin: 0;
-  font-size: 2.5rem;
-}
-
-header p {
-  margin-top: 10px;
-  font-size: 1.2rem;
-  color: #d1d1d1;
-}
-
-/* Контейнер карток */
-.cards-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 30px;
-  padding: 40px 20px;
-}
-
-/* Картки */
-.card {
-  background: #1f2f38;
-  border-radius: 15px;
-  width: 280px;
-  text-align: center;
+/* Контейнер */
+.container {
+  width: 90%;
+  max-width: 900px;
+  margin: 0 auto;
   padding: 20px;
-  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+/* Заголовки */
+h1, h2 {
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* Зображення у статтях */
+article img {
+  width: 100%;
+  max-height: 250px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+/* Текст у статті */
+article {
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+/* Список */
+ul {
+  padding-left: 20px;
+}
+
+/* Кнопка "На головну" */
+nav a {
+  display: inline-block;
+  margin: 10px auto;
+  padding: 10px 20px;
+  background: #00a86b;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.3s ease;
+  text-align: center;
+}
+
+nav a:hover {
+  background: #007f50;
+}
+
+/* Статті-картки на головній */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: #17323a;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .card img {
   width: 100%;
   height: 180px;
   object-fit: cover;
-  border-radius: 12px;
-  margin-bottom: 15px;
+}
+
+.card-content {
+  padding: 15px;
+  text-align: center;
 }
 
 .card h2 {
-  font-size: 1.4rem;
-  margin: 10px 0;
+  font-size: 20px;
+  margin-bottom: 10px;
 }
 
 .card p {
-  font-size: 1rem;
-  color: #cfcfcf;
-  margin-bottom: 20px;
+  font-size: 15px;
+  color: #ccc;
 }
 
-.card:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-}
-
-/* Кнопки */
-.btn {
-  background: #28a745;
-  color: white;
-  text-decoration: none;
-  padding: 12px 20px;
-  border-radius: 25px;
-  font-weight: bold;
+.card a {
   display: inline-block;
-  transition: background 0.3s;
+  background: #00a86b;
+  color: white;
+  font-weight: bold;
+  padding: 10px 18px;
+  border-radius: 8px;
+  margin-top: 10px;
+  text-decoration: none;
+  transition: 0.3s ease;
 }
 
-.btn:hover {
-  background: #218838;
+.card a:hover {
+  background: #007f50;
 }
