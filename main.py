@@ -12,16 +12,15 @@ from telegram.ext import (
     MessageHandler, ContextTypes, ConversationHandler, filters
 )
 
-# PDF
+# ---- PDF ----
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 
-
 # ========= CONFIG =========
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
-ONLY_USER_ID = None  # Якщо хочеш обмежити доступ — впиши свій Telegram ID
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
+ONLY_USER_ID = None  # за потреби вкажи свій Telegram ID
 
 TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
 CURRENCIES = {"UAH": "грн", "USD": "$"}
@@ -58,7 +57,6 @@ CATEGORIES = {
     },
 }
 
-
 # ========= DB =========
 DB_PATH = "finance.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -79,7 +77,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 """)
 conn.commit()
 
-
 # ========= STATES =========
 class S(Enum):
     TYPE = auto()
@@ -94,19 +91,15 @@ class S(Enum):
     DAY = auto()
     PDF = auto()
 
-
 # ========= LOGGING =========
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("finance-bot")
 
-
-# ========= HELPERS =========
+# ========= KEYBOARDS =========
 def ikb(rows):
-    """rows = [[(text, data), ...], ...]"""
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton(t, callback_data=d) for (t, d) in row] for row in rows]
     )
-
 
 def main_menu_kb():
     return ikb([
@@ -114,7 +107,6 @@ def main_menu_kb():
         [("📈 Інвестиції", "type:inv")],
         [("📊 Статистика", "stats:open")]
     ])
-
 
 def categories_kb(tname):
     cats = list(CATEGORIES[tname].keys())
@@ -126,7 +118,6 @@ def categories_kb(tname):
     if row: rows.append(row)
     rows.append([("⬅ Назад", "back:main")])
     return ikb(rows)
-
 
 def subcategories_kb(tname, cat_name):
     subs = CATEGORIES[tname][cat_name]
@@ -142,13 +133,11 @@ def subcategories_kb(tname, cat_name):
     rows.append([("⬅ Назад", "back:cats")])
     return ikb(rows)
 
-
 def currencies_kb():
     return ikb([
         [(CURRENCIES["UAH"], "cur:UAH"), (CURRENCIES["USD"], "cur:USD")],
         [("⬅ Назад", "back:amount")]
     ])
-
 
 def stats_mode_kb():
     return ikb([
@@ -156,13 +145,11 @@ def stats_mode_kb():
         [("⬅ Назад", "back:main")]
     ])
 
-
 def years_kb():
     now = datetime.now().year
     years = [str(y) for y in range(now - 2, now + 1)]
     row = [(y, f"stats:year:{y}") for y in years]
     return ikb([row, [("⬅ Назад", "back:stats")]])
-
 
 def months_kb():
     months = [
@@ -180,7 +167,6 @@ def months_kb():
     rows.append([("⬅ Назад", "back:year")])
     return ikb(rows)
 
-
 def days_kb(year, month):
     last = calendar.monthrange(int(year), int(month))[1]
     rows, row = [], []
@@ -192,15 +178,13 @@ def days_kb(year, month):
     rows.append([("⬅ Назад", "back:month")])
     return ikb(rows)
 
-
-# ========= DB LOGIC =========
+# ========= DATA =========
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     cur.execute("""
         INSERT INTO transactions (user_id, type, category, subcategory, amount, currency, comment, date, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
     conn.commit()
-
 
 def fetch_transactions(user_id, year, month=None, day=None):
     if day:
@@ -215,7 +199,6 @@ def fetch_transactions(user_id, year, month=None, day=None):
         cur.execute(q, (user_id, str(year), str(month)))
     return cur.fetchall()
 
-
 def stats_text(user_id, year, month=None, day=None):
     tx = fetch_transactions(user_id, year, month, day)
     title = f"📅 {day} {MONTH_NAMES[month]} {year}" if day else f"📆 {MONTH_NAMES[month]} {year}"
@@ -229,7 +212,6 @@ def stats_text(user_id, year, month=None, day=None):
         lines.append(f"- {t} | {cat}/{sub or '-'}: {amt:.2f} {curr} ({com or '-'})")
     totals = "\n".join([f"{t}: {sums[t]:.2f}" for t in sums])
     return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{totals}", tx
-
 
 def generate_pdf(transactions, filename, title):
     doc = SimpleDocTemplate(filename, pagesize=A4)
@@ -258,32 +240,37 @@ def generate_pdf(transactions, filename, title):
     elements.append(table)
     doc.build(elements)
 
+def allowed(user_id: int) -> bool:
+    return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
 
-# ========= BOT LOGIC =========
+# ========= UTIL =========
 async def edit_or_send(q, text, kb=None):
-    """Редагує повідомлення або шле нове, якщо не вдалось."""
+    """Редагує існуюче повідомлення або шле нове (на випадок, якщо старе вже не редагується)."""
     try:
         await q.message.edit_text(text, reply_markup=kb)
     except:
         await q.message.reply_text(text, reply_markup=kb)
 
-
+# ========= COMMANDS =========
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if ONLY_USER_ID and update.effective_user.id != ONLY_USER_ID:
+    if not allowed(update.effective_user.id):
         await update.message.reply_text("⛔ Доступ обмежено.")
         return ConversationHandler.END
-    txt = "👋 Привіт! Я — фінансовий бот.\nЗасновник: @hnidets011"
+    txt = (
+        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n\n"
+        "Натискай кнопки нижче.\n"
+        "Засновник: @hnidets011"
+    )
     await update.message.reply_text(txt, reply_markup=main_menu_kb())
     return S.TYPE
 
-
-# ========= CALLBACK HANDLER =========
+# ========= CALLBACKS =========
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     data = q.data
 
-    # Головне меню
+    # Головне меню → вибір типу
     if data.startswith("type:"):
         code = data.split(":")[1]
         tname = TYPE_CODES[code]
@@ -301,7 +288,11 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("cat:"):
         idx = int(data.split(":")[1])
         tname = context.user_data["type"]
-        cat = context.user_data["cat_list"][idx]
+        cats = context.user_data["cat_list"]
+        if idx < 0 or idx >= len(cats):
+            await edit_or_send(q, "Некоректна категорія. Обери ще раз:", categories_kb(tname))
+            return S.CATEGORY
+        cat = cats[idx]
         context.user_data["category"] = cat
         subs = CATEGORIES[tname][cat]
         if subs:
@@ -324,7 +315,12 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["subcategory"] = None
         else:
             idx = int(data.split(":")[1])
-            context.user_data["subcategory"] = context.user_data["sub_list"][idx]
+            subs = context.user_data.get("sub_list", [])
+            if idx < 0 or idx >= len(subs):
+                await edit_or_send(q, "Некоректна підкатегорія. Обери ще раз:",
+                                   subcategories_kb(context.user_data["type"], context.user_data["category"]))
+                return S.SUBCATEGORY
+            context.user_data["subcategory"] = subs[idx]
         await edit_or_send(q, "Введи суму (наприклад 123.45):")
         return S.AMOUNT
 
@@ -345,23 +341,33 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return S.STATS_MODE
 
     if data.startswith("stats:mode:"):
-        mode = data.split(":")[2]
+        mode = data.split(":")[2]  # month/day
         context.user_data["stats_mode"] = mode
         await edit_or_send(q, "Оберіть рік:", years_kb())
         return S.YEAR
 
+    if data == "back:year":
+        await edit_or_send(q, "Оберіть рік:", years_kb())
+        return S.YEAR
+
     if data.startswith("stats:year:"):
-        context.user_data["year"] = data.split(":")[2]
+        year = data.split(":")[2]
+        context.user_data["year"] = year
+        await edit_or_send(q, "Оберіть місяць:", months_kb())
+        return S.MONTH
+
+    if data == "back:month":
         await edit_or_send(q, "Оберіть місяць:", months_kb())
         return S.MONTH
 
     if data.startswith("stats:month:"):
         month = data.split(":")[2]
         context.user_data["month"] = month
-        if context.user_data["stats_mode"] == "month":
+        if context.user_data.get("stats_mode") == "month":
             text, tx = stats_text(update.effective_user.id, context.user_data["year"], month)
             context.user_data["tx"] = tx
-            kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+            context.user_data["day"] = None
+            kb = ikb([[("📄 Завантажити PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
             await edit_or_send(q, text, kb)
             return S.PDF
         else:
@@ -373,7 +379,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["day"] = day
         text, tx = stats_text(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
         context.user_data["tx"] = tx
-        kb = ikb([[("📄 PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+        kb = ikb([[("📄 Завантажити PDF", "stats:pdf")], [("⬅ Назад", "back:stats")]])
         await edit_or_send(q, text, kb)
         return S.PDF
 
@@ -382,8 +388,8 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not tx:
             await edit_or_send(q, "📭 Немає даних для PDF.")
             return S.STATS_MODE
-        year = context.user_data["year"]
-        month = context.user_data["month"]
+        year = context.user_data.get("year")
+        month = context.user_data.get("month")
         day = context.user_data.get("day")
         title = f"Звіт за {day} {MONTH_NAMES[month]} {year}" if day else f"Звіт за {MONTH_NAMES[month]} {year}"
         filename = "report.pdf"
@@ -393,23 +399,84 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("✅ Готово", reply_markup=stats_mode_kb())
         return S.STATS_MODE
 
+    # дефолт
+    await edit_or_send(q, "Меню:", main_menu_kb())
     return S.TYPE
 
-
-# ========= TEXT HANDLERS =========
+# ========= TEXT INPUTS =========
 async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.replace(",", ".").strip()
+    text = (update.message.text or "").replace(",", ".").strip()
     try:
         amount = float(text)
-    except:
-        await update.message.reply_text("Сума має бути числом.")
+    except Exception:
+        await update.message.reply_text("Сума має бути числом. Приклад: 123.45")
         return S.AMOUNT
     context.user_data["amount"] = amount
     await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
     return S.CURRENCY
 
-
 async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comment = update.message.text.strip()
+    comment = (update.message.text or "").strip()
     if comment == "-":
         comment = None
+
+    ud = context.user_data
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    save_tx(
+        update.effective_user.id,
+        ud["type"],
+        ud["category"],
+        ud.get("subcategory"),
+        ud["amount"],
+        ud.get("currency", CURRENCIES["UAH"]),
+        comment,
+        date_str
+    )
+    await update.message.reply_text(
+        "✅ Записано:\n"
+        f"{ud['type']} → {ud['category']} → {ud.get('subcategory','-')}\n"
+        f"Сума: {ud['amount']} {ud.get('currency', CURRENCIES['UAH'])}\n"
+        f"Дата: {date_str}\n"
+        f"Коментар: {comment or '-'}",
+        reply_markup=main_menu_kb()
+    )
+    ud.clear()
+    return S.TYPE
+
+async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    await update.message.reply_text("Скасовано.", reply_markup=main_menu_kb())
+    return S.TYPE
+
+# ========= APP =========
+def build_app():
+    app = Application.builder().token(BOT_TOKEN).build()
+    conv = ConversationHandler(
+        entry_points=[CommandHandler("start", cmd_start)],
+        states={
+            # callback-кроки
+            S.TYPE: [CallbackQueryHandler(on_cb)],
+            S.CATEGORY: [CallbackQueryHandler(on_cb)],
+            S.SUBCATEGORY: [CallbackQueryHandler(on_cb)],
+            S.CURRENCY: [CallbackQueryHandler(on_cb)],
+            S.STATS_MODE: [CallbackQueryHandler(on_cb)],
+            S.YEAR: [CallbackQueryHandler(on_cb)],
+            S.MONTH: [CallbackQueryHandler(on_cb)],
+            S.DAY: [CallbackQueryHandler(on_cb)],
+            S.PDF: [CallbackQueryHandler(on_cb)],
+            # текстові кроки
+            S.AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_amount)],
+            S.COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_comment)],
+        },
+        fallbacks=[CommandHandler("cancel", cmd_cancel)],
+        allow_reentry=True,
+    )
+    app.add_handler(conv)
+    return app
+
+def main():
+    app = build_app()
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
