@@ -2,6 +2,7 @@ import os
 import sqlite3
 import calendar
 import logging
+import time
 from enum import Enum, auto
 from datetime import datetime
 
@@ -22,11 +23,11 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 # ========= CONFIG =========
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # з Railway → Variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не знайдено. Додай у Railway → Variables.")
 
-# Зареєструємо кириличний шрифт (файл DejaVuSans.ttf має лежати поряд із main.py)
+# Шрифт для PDF (файл DejaVuSans.ttf має бути в корені проєкту)
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
@@ -166,7 +167,7 @@ def fetch_transactions(user_id, year, month=None, day=None):
         cur.execute(q, (user_id, str(year), str(month)))
     return cur.fetchall()
 
-# ========= KEYBOARDS =========
+# ========= UI / KEYBOARDS =========
 def ikb(rows):
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton(t, callback_data=d) for (t, d) in row] for row in rows]
@@ -176,7 +177,8 @@ def main_menu_kb():
     return ikb([
         [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
         [("📈 Інвестиції", "type:inv")],
-        [("📊 Статистика", "stats:open"), ("👤 Мій профіль", "profile:open")]
+        [("📊 Статистика", "stats:open"), ("👤 Мій профіль", "profile:open")],
+        [("ℹ️ Допомога", "help:open")]
     ])
 
 def categories_kb(tname):
@@ -257,8 +259,9 @@ def stats_text(user_id, year, month=None, day=None):
     sums = {"💸 Витрати": 0, "💰 Надходження": 0, "📈 Інвестиції": 0}
     lines = []
     for t, cat, sub, amt, curr, com in tx:
-        sums[t] += float(amt or 0)
-        lines.append(f"- {t} | {cat}/{sub or '-'}: {amt:.2f} {curr} ({com or '-'})")
+        a = float(amt or 0)
+        sums[t] += a
+        lines.append(f"- {t} | {cat}/{sub or '-'}: {a:.2f} {curr} ({com or '-'})")
     totals = "\n".join([f"{t}: {sums[t]:.2f}" for t in sums])
     return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{totals}", tx
 
@@ -300,6 +303,35 @@ async def edit_or_send(q, text, kb=None):
     except:
         await q.message.reply_text(text, reply_markup=kb)
 
+def now_ts() -> float:
+    return time.time()
+
+def guard_double_click(context: ContextTypes.DEFAULT_TYPE, window=0.5) -> bool:
+    """Повертає True, якщо треба ігнорити повторний клік (антидребезг)."""
+    last = context.user_data.get("_last_cb", 0.0)
+    t = now_ts()
+    context.user_data["_last_cb"] = t
+    return (t - last) < window
+
+# ========= HELP / INTRO =========
+INTRO_TEXT = (
+    "✅ Профіль створено!\n\n"
+    "Твій особистий кабінет готовий. Тут ти можеш:\n"
+    "• Вносити **витрати**, **надходження** та **інвестиції**\n"
+    "• Дивитись **статистику** за день чи місяць\n"
+    "• Завантажувати **PDF-звіти** з деталями\n"
+    "• Керувати профілем (ім’я, валюта)\n\n"
+    "Почнемо? Обирай дію нижче 👇"
+)
+
+HELP_TEXT = (
+    "ℹ️ Що вміє бот:\n\n"
+    "• **Витрати/Надходження/Інвестиції** — покроково додай категорію, суму, валюту та коментар\n"
+    "• **Статистика** — за день або місяць, з деталізацією + PDF\n"
+    "• **Мій профіль** — перегляд і редагування імені та валюти\n\n"
+    "Порада: якщо натиснув кнопку і бачиш 'Загрузка…' — дочекайся відповіді; подвійні кліки бот ігнорує."
+)
+
 # ========= START / ONBOARDING =========
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get_user(update.effective_user.id)
@@ -308,7 +340,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👋 Привіт! Я — фінансовий бот. Давай познайомимось.\nЯк до тебе звертатись?"
         )
         return S.ASK_NAME
-    await update.message.reply_text(f"👋 Привіт, {u[1]}!", reply_markup=main_menu_kb())
+    await update.message.reply_text(f"👋 Привіт, {u[1]}!\n\n{HELP_TEXT}", reply_markup=main_menu_kb())
+    return S.TYPE
+
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(HELP_TEXT, reply_markup=main_menu_kb())
     return S.TYPE
 
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -323,20 +359,26 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ask_currency_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    if guard_double_click(context):  # анти подвійний клік
+        return ConversationHandler.WAITING
+
     data = q.data  # cur:UAH / cur:USD
     code = data.split(":")[1]
     label = CURRENCIES[code]
     name = context.user_data.get("new_name", update.effective_user.first_name or "Користувач")
 
     create_or_update_user(update.effective_user.id, name, label)
-    await edit_or_send(q, f"✅ Профіль створено!\nІм'я: {name}\nВалюта: {label}", main_menu_kb())
     context.user_data.pop("new_name", None)
+    await edit_or_send(q, INTRO_TEXT, main_menu_kb())
     return S.TYPE
 
 # ========= PROFILE =========
 async def profile_open(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    if guard_double_click(context):
+        return ConversationHandler.WAITING
+
     u = get_user(update.effective_user.id)
     if not u:
         await edit_or_send(q, "Спершу запусти /start для створення профілю.")
@@ -356,6 +398,9 @@ async def profile_open(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def profile_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    if guard_double_click(context):
+        return ConversationHandler.WAITING
+
     data = q.data
     if data == "profile:edit_name":
         await edit_or_send(q, "Введи нове ім'я:")
@@ -378,16 +423,24 @@ async def profile_set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return S.TYPE
 
 # ========= CORE FLOW (тип → категорія → підкатегорія → сума → валюта → коментар) =========
+def _clear_flow_data(context: ContextTypes.DEFAULT_TYPE):
+    for k in ["type", "cat_list", "category", "sub_list", "subcategory", "amount", "currency", "tx",
+              "year", "month", "day", "stats_mode"]:
+        context.user_data.pop(k, None)
+
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    if guard_double_click(context):
+        return ConversationHandler.WAITING
+
     data = q.data
 
     # Головне меню: тип операції
     if data.startswith("type:"):
         code = data.split(":")[1]
         tname = TYPE_CODES[code]
-        context.user_data.clear()
+        _clear_flow_data(context)
         context.user_data["type"] = tname
         context.user_data["cat_list"] = list(CATEGORIES[tname].keys())
         await edit_or_send(q, "Вибери категорію:", categories_kb(tname))
@@ -397,13 +450,17 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_or_send(q, "Меню:", main_menu_kb())
         return S.TYPE
 
+    if data == "help:open":
+        await edit_or_send(q, HELP_TEXT, main_menu_kb())
+        return S.TYPE
+
     # Категорії
     if data.startswith("cat:"):
         idx = int(data.split(":")[1])
-        tname = context.user_data["type"]
-        cats = context.user_data["cat_list"]
-        if idx < 0 or idx >= len(cats):
-            await edit_or_send(q, "Некоректна категорія. Обери ще раз:", categories_kb(tname))
+        tname = context.user_data.get("type")
+        cats = context.user_data.get("cat_list", [])
+        if not tname or idx < 0 or idx >= len(cats):
+            await edit_or_send(q, "Обери категорію:", categories_kb(tname or "💸 Витрати"))
             return S.CATEGORY
         cat = cats[idx]
         context.user_data["category"] = cat
@@ -430,8 +487,8 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             idx = int(data.split(":")[1])
             subs = context.user_data.get("sub_list", [])
             if idx < 0 or idx >= len(subs):
-                await edit_or_send(q, "Некоректна підкатегорія. Обери ще раз:",
-                                   subcategories_kb(context.user_data["type"], context.user_data["category"]))
+                await edit_or_send(q, "Обери підкатегорію:",
+                                   subcategories_kb(context.user_data.get("type"), context.user_data.get("category")))
                 return S.SUBCATEGORY
             context.user_data["subcategory"] = subs[idx]
         await edit_or_send(q, "Введи суму (наприклад 123.45):")
@@ -447,6 +504,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Статистика
     if data == "stats:open" or data == "back:stats":
+        context.user_data["stats_mode"] = None
         await edit_or_send(q, "Оберіть режим:", stats_mode_kb())
         return S.STATS_MODE
 
@@ -510,7 +568,6 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return S.STATS_MODE
 
     # Профіль відкривається окремим хендлером (profile:open),
-    # а цей on_cb обробляє решту callback-кнопок.
     return S.TYPE
 
 # ========= TEXT INPUTS =========
@@ -533,6 +590,8 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def on_currency_from_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    if guard_double_click(context):
+        return ConversationHandler.WAITING
     # cur_profile:грн  — зберігаємо як є (рядок-лейбл)
     label = q.data.split(":", 1)[1]
     context.user_data["currency"] = label
@@ -566,58 +625,66 @@ async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Коментар: {comment or '-'}",
         reply_markup=main_menu_kb()
     )
-    ud.clear()
+    _clear_flow_data(context)
     return S.TYPE
+
+# ========= ERROR HANDLER =========
+async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
+    log.exception("Помилка в аплікації", exc_info=context.error)
+    try:
+        if isinstance(update, Update) and update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="⚠️ Вибач, сталася помилка. Спробуй ще раз або натисни /start."
+            )
+    except Exception:
+        pass
 
 # ========= APP =========
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
 
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", cmd_start)],
+        entry_points=[
+            CommandHandler("start", cmd_start),
+            CommandHandler("help", cmd_help),
+        ],
         states={
             # Онбординг
             S.ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
-            S.ASK_CURRENCY: [
-                CallbackQueryHandler(ask_currency_cb, pattern=r"^cur:(UAH|USD)$")
-            ],
+            S.ASK_CURRENCY: [CallbackQueryHandler(ask_currency_cb, pattern=r"^cur:(UAH|USD)$"),
+                             CallbackQueryHandler(on_cb, pattern=".*")],  # страховка
 
             # Профіль
-            S.PROFILE: [
-                CallbackQueryHandler(profile_router, pattern=r"^(profile:edit_name|profile:edit_currency|back:main)$")
-            ],
-            S.PROFILE_EDIT_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, profile_set_name)
-            ],
+            S.PROFILE: [CallbackQueryHandler(profile_router, pattern=r"^(profile:edit_name|profile:edit_currency|back:main)$"),
+                        CallbackQueryHandler(on_cb, pattern=".*")],
+            S.PROFILE_EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, profile_set_name)],
 
             # Основний флоу
-            S.TYPE: [
-                CallbackQueryHandler(on_cb, pattern=r"^(type:|back:main|stats:open)$"),
-                CallbackQueryHandler(profile_open, pattern=r"^profile:open$")
-            ],
-            S.CATEGORY: [CallbackQueryHandler(on_cb, pattern=r"^(cat:|back:main)$")],
-            S.SUBCATEGORY: [CallbackQueryHandler(on_cb, pattern=r"^(sub:|back:cats)$")],
+            S.TYPE: [CallbackQueryHandler(on_cb, pattern=".*"),
+                     MessageHandler(filters.COMMAND, cmd_help)],
+            S.CATEGORY: [CallbackQueryHandler(on_cb, pattern=".*")],
+            S.SUBCATEGORY: [CallbackQueryHandler(on_cb, pattern=".*")],
             S.AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_amount)],
-            S.CURRENCY: [
-                CallbackQueryHandler(on_cb, pattern=r"^cur:(UAH|USD)$"),
-                CallbackQueryHandler(on_currency_from_profile, pattern=r"^cur_profile:")
-            ],
+            S.CURRENCY: [CallbackQueryHandler(on_cb, pattern=r"^cur:(UAH|USD)$"),
+                         CallbackQueryHandler(on_currency_from_profile, pattern=r"^cur_profile:")],
             S.COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_comment)],
 
             # Статистика / PDF
-            S.STATS_MODE: [CallbackQueryHandler(on_cb, pattern=r"^(stats:mode:|back:main|back:stats)$")],
-            S.YEAR: [CallbackQueryHandler(on_cb, pattern=r"^(stats:year:|back:stats)$")],
-            S.MONTH: [CallbackQueryHandler(on_cb, pattern=r"^(stats:month:|back:year)$")],
-            S.DAY: [CallbackQueryHandler(on_cb, pattern=r"^(stats:day:|back:month)$")],
-            S.PDF: [CallbackQueryHandler(on_cb, pattern=r"^(stats:pdf|back:stats)$")],
+            S.STATS_MODE: [CallbackQueryHandler(on_cb, pattern=".*")],
+            S.YEAR: [CallbackQueryHandler(on_cb, pattern=".*")],
+            S.MONTH: [CallbackQueryHandler(on_cb, pattern=".*")],
+            S.DAY: [CallbackQueryHandler(on_cb, pattern=".*")],
+            S.PDF: [CallbackQueryHandler(on_cb, pattern=".*")],
         },
-        fallbacks=[],
+        fallbacks=[CommandHandler("help", cmd_help)],
         allow_reentry=True,
     )
 
     app.add_handler(conv)
-    # Додатково окремо ловимо відкриття профілю зі стартового меню
+    # Відкриття профілю з меню ловимо поза станами — як запасний варіант
     app.add_handler(CallbackQueryHandler(profile_open, pattern=r"^profile:open$"))
+    app.add_error_handler(on_error)
     return app
 
 def main():
