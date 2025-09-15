@@ -313,7 +313,7 @@ def guard_double_click(context: ContextTypes.DEFAULT_TYPE, window=0.5) -> bool:
     context.user_data["_last_cb"] = t
     return (t - last) < window
 
-# ========= HELP / INTRO =========
+# ========= START/HELP/INTRO =========
 INTRO_TEXT = (
     "✅ Профіль створено!\n\n"
     "Твій особистий кабінет готовий. Тут ти можеш:\n"
@@ -326,13 +326,12 @@ INTRO_TEXT = (
 
 HELP_TEXT = (
     "ℹ️ Що вміє бот:\n\n"
-    "• **Витрати/Надходження/Інвестиції** — покроково додай категорію, суму, валюту та коментар\n"
-    "• **Статистика** — за день або місяць, з деталізацією + PDF\n"
+    "• **Витрати/Надходження/Інвестиції** — обирай категорії, вводь суму, валюту та коментар\n"
+    "• **Статистика** — за день або місяць, з деталями + PDF\n"
     "• **Мій профіль** — перегляд і редагування імені та валюти\n\n"
     "Порада: якщо натиснув кнопку і бачиш 'Загрузка…' — дочекайся відповіді; подвійні кліки бот ігнорує."
 )
 
-# ========= START / ONBOARDING =========
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get_user(update.effective_user.id)
     if not u:
@@ -347,6 +346,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(HELP_TEXT, reply_markup=main_menu_kb())
     return S.TYPE
 
+# ========= ONBOARDING =========
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = (update.message.text or "").strip()
     if not name:
@@ -422,7 +422,7 @@ async def profile_set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Ім'я змінено.", reply_markup=main_menu_kb())
     return S.TYPE
 
-# ========= CORE FLOW (тип → категорія → підкатегорія → сума → валюта → коментар) =========
+# ========= CORE FLOW =========
 def _clear_flow_data(context: ContextTypes.DEFAULT_TYPE):
     for k in ["type", "cat_list", "category", "sub_list", "subcategory", "amount", "currency", "tx",
               "year", "month", "day", "stats_mode"]:
@@ -567,7 +567,6 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("✅ Готово", reply_markup=stats_mode_kb())
         return S.STATS_MODE
 
-    # Профіль відкривається окремим хендлером (profile:open),
     return S.TYPE
 
 # ========= TEXT INPUTS =========
@@ -662,6 +661,7 @@ def build_app():
 
             # Основний флоу
             S.TYPE: [CallbackQueryHandler(on_cb, pattern=".*"),
+                     CallbackQueryHandler(profile_open, pattern=r"^profile:open$"),
                      MessageHandler(filters.COMMAND, cmd_help)],
             S.CATEGORY: [CallbackQueryHandler(on_cb, pattern=".*")],
             S.SUBCATEGORY: [CallbackQueryHandler(on_cb, pattern=".*")],
@@ -676,13 +676,13 @@ def build_app():
             S.MONTH: [CallbackQueryHandler(on_cb, pattern=".*")],
             S.DAY: [CallbackQueryHandler(on_cb, pattern=".*")],
             S.PDF: [CallbackQueryHandler(on_cb, pattern=".*")],
-        },
+        ],
         fallbacks=[CommandHandler("help", cmd_help)],
         allow_reentry=True,
     )
 
     app.add_handler(conv)
-    # Відкриття профілю з меню ловимо поза станами — як запасний варіант
+    # Резервний лов профілю з будь-якого стану
     app.add_handler(CallbackQueryHandler(profile_open, pattern=r"^profile:open$"))
     app.add_error_handler(on_error)
     return app
