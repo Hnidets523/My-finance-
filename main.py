@@ -3,16 +3,18 @@ import sqlite3
 import calendar
 import random
 import requests
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InputFile
+from telegram import (
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+)
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ConversationHandler,
-    ContextTypes, filters
+    Application, CommandHandler, ConversationHandler,
+    MessageHandler, CallbackQueryHandler, ContextTypes, filters
 )
 
-# PDF
+# ==== PDF ====
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
@@ -20,23 +22,22 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-# Charts
+# ==== Charts ====
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ====== CONFIG ======
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Railway → Variables
+# ===================== CONFIG =====================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).")
 
-pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 DB_PATH = "finance.db"
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
-# ====== DB ======
+# ===================== DB =====================
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
-
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
@@ -61,8 +62,16 @@ CREATE TABLE IF NOT EXISTS transactions (
 """)
 conn.commit()
 
-# ====== DATA ======
-TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика", "👤 Мій профіль"]
+# ===================== CONSTANTS =====================
+MONTHS = {
+    1: "Січень", 2: "Лютий", 3: "Березень", 4: "Квітень",
+    5: "Травень", 6: "Червень", 7: "Липень", 8: "Серпень",
+    9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
+}
+MONTHS_BY_NAME = {v: k for k, v in MONTHS.items()}
+
+TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]
+CURRENCIES = ["грн", "$"]
 
 CATEGORIES = {
     "💸 Витрати": {
@@ -90,14 +99,6 @@ CATEGORIES = {
     },
 }
 
-CURRENCIES = ["грн", "$"]
-MONTHS = {
-    1: "Січень", 2: "Лютий", 3: "Березень", 4: "Квітень",
-    5: "Травень", 6: "Червень", 7: "Липень", 8: "Серпень",
-    9: "Вересень", 10: "Жовтень", 11: "Листопад", 12: "Грудень"
-}
-MONTHS_BY_NAME = {v: k for k, v in MONTHS.items()}
-
 TIPS = [
     "Не заощаджуй те, що залишилось після витрат — витрачай те, що залишилось після заощаджень. — Уоррен Баффет",
     "Бюджет — це те, що змушує ваші гроші робити те, що ви хочете. — Дейв Ремзі",
@@ -112,85 +113,77 @@ TIPS = [
     "Гроші люблять тишу. Приймай рішення раціонально, не імпульсивно."
 ]
 
-# ====== STATES ======
+# ===================== STATES =====================
 (
-    NAME, CURRENCY_SETUP,
-    TYPE, CATEGORY, SUBCATEGORY, AMOUNT, COMMENT,
-    STAT_MODE, STAT_YEAR, STAT_MONTH, STAT_DAY, STAT_ACTION,
-    PROFILE_MENU, PROFILE_EDIT_NAME, PROFILE_EDIT_CURRENCY
-) = range(15)
+    ASK_NAME,  # очікуємо ім’я
+    MAIN,      # головний екран
+    AMOUNT,    # очікуємо суму
+    COMMENT,   # очікуємо коментар
+    STAT_DAY,  # очікуємо вибір дня (inline)
+    STAT_MONTH_SELECT,  # вибір місяця (inline)
+    STAT_YEAR_SELECT,   # вибір року (inline)
+    PROFILE_EDIT_NAME,  # редагування імені (text)
+) = range(8)
 
-# ====== KEYBOARDS ======
-def kb(rows):
-    return ReplyKeyboardMarkup([[KeyboardButton(x) for x in row] for row in rows], resize_keyboard=True)
+# ===================== RATES (NBU + CoinGecko) =====================
+async def refresh_rates_job(context: ContextTypes.DEFAULT_TYPE):
+    # NBU
+    try:
+        r = requests.get("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json", timeout=10)
+        data = r.json()
+        usd = next((x for x in data if str(x.get("r030")) == "840"), None)
+        eur = next((x for x in data if str(x.get("r030")) == "978"), None)
+        usd_uah = float(usd["rate"]) if usd else None
+        eur_uah = float(eur["rate"]) if eur else None
+    except Exception:
+        usd_uah = eur_uah = None
 
-def main_menu_kb():
-    return kb([["💸 Витрати", "💰 Надходження"], ["📈 Інвестиції", "📊 Статистика"], ["👤 Мій профіль"]])
+    # CoinGecko
+    try:
+        c = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": "bitcoin,ethereum", "vs_currencies": "usd"},
+            timeout=10
+        ).json()
+        btc_usd = float(c.get("bitcoin", {}).get("usd", 0) or 0)
+        eth_usd = float(c.get("ethereum", {}).get("usd", 0) or 0)
+    except Exception:
+        btc_usd = eth_usd = None
 
-def categories_kb(for_type):
-    cats = list(CATEGORIES[for_type].keys())
-    rows, row = [], []
-    for c in cats:
-        row.append(c)
-        if len(row) == 2:
-            rows.append(row); row = []
-    if row: rows.append(row)
-    rows.append(["↩️ Назад"])
-    return kb(rows)
+    rates = context.application.bot_data.get("rates", {})
+    if usd_uah: rates["usd_uah"] = usd_uah
+    if eur_uah: rates["eur_uah"] = eur_uah
+    if btc_usd: rates["btc_usd"] = btc_usd
+    if eth_usd: rates["eth_usd"] = eth_usd
+    context.application.bot_data["rates"] = rates
+    context.application.bot_data["rates_updated"] = datetime.utcnow().isoformat()
 
-def subcategories_kb(for_type, category):
-    subs = CATEGORIES[for_type][category]
-    rows = []
-    if subs:
-        row = []
-        for s in subs:
-            row.append(s)
-            if len(row) == 2:
-                rows.append(row); row = []
-        if row: rows.append(row)
-    rows.append(["(без підкатегорії)", "↩️ Назад"])
-    return kb(rows)
+def fmtn(v: float) -> str:
+    return f"{v:,.2f}".replace(",", " ").replace(".", ",")
 
-def currencies_kb():
-    return kb([CURRENCIES, ["↩️ Назад"]])
+def fmtd(v: float) -> str:
+    return f"{v:,.0f}".replace(",", " ")
 
-def stat_mode_kb():
-    return kb([["📅 За день", "📅 За місяць"], ["↩️ Назад"]])
+def rates_block(bot_data: dict) -> str:
+    rates = bot_data.get("rates", {})
+    usd = rates.get("usd_uah")
+    eur = rates.get("eur_uah")
+    btc = rates.get("btc_usd")
+    eth = rates.get("eth_usd")
+    if not (usd and eur and btc and eth):
+        return "📡 Котирування недоступні зараз. Спробуй пізніше."
+    btc_uah = btc * usd
+    eth_uah = eth * usd
+    return (
+        "📈 КОТИРУВАННЯ (реальний час)\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"💵 Долар США: 1 USD = {fmtn(usd)} грн\n"
+        f"💶 Євро: 1 EUR = {fmtn(eur)} грн\n"
+        f"₿ Біткоїн: ${fmtd(btc)} ≈ {fmtn(btc_uah)} грн\n"
+        f"Ξ Ефір: ${fmtd(eth)} ≈ {fmtn(eth_uah)} грн"
+    )
 
-def years_kb():
-    y = datetime.now().year
-    return kb([[str(y), str(y-1)], ["↩️ Назад"]])
-
-def months_kb():
-    rows, row = [], []
-    for m in range(1, 13):
-        row.append(MONTHS[m])
-        if len(row) == 3:
-            rows.append(row); row = []
-    if row: rows.append(row)
-    rows.append(["↩️ Назад"])
-    return kb(rows)
-
-def days_kb(year: int, month: int):
-    ndays = calendar.monthrange(year, month)[1]
-    rows, row = [], []
-    for d in range(1, ndays+1):
-        row.append(str(d))
-        if len(row) == 7:
-            rows.append(row); row = []
-    if row: rows.append(row)
-    rows.append(["↩️ Назад"])
-    return kb(rows)
-
-def stats_actions_kb():
-    return kb([["📄 PDF", "🥧 Діаграма"], ["↩️ Назад"], ["🏠 Головне меню"]])
-
-def profile_menu_kb():
-    return kb([["✏️ Змінити ім’я", "💱 Змінити валюту"],
-               ["📜 Увесь історичний PDF"],
-               ["🏠 Головне меню"]])
-
-# ====== HELPERS (DB) ======
+# ===================== HELPERS =====================
 def get_user(user_id: int):
     cur.execute("SELECT user_id, name, currency, created_at FROM users WHERE user_id=?", (user_id,))
     return cur.fetchone()
@@ -211,10 +204,10 @@ def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     conn.commit()
 
 def fetch_day(user_id, y, m, d):
-    date_str = f"{y:04d}-{m:02d}-{d:02d}"
+    ds = f"{y:04d}-{m:02d}-{d:02d}"
     cur.execute("""SELECT type, category, subcategory, amount, currency, comment
-                   FROM transactions WHERE user_id=? AND date=?""", (user_id, date_str))
-    return cur.fetchall(), date_str
+                   FROM transactions WHERE user_id=? AND date=?""", (user_id, ds))
+    return cur.fetchall(), ds
 
 def fetch_month(user_id, y, m):
     cur.execute("""SELECT type, category, subcategory, amount, currency, comment
@@ -223,7 +216,6 @@ def fetch_month(user_id, y, m):
                 (user_id, str(y), f"{m:02d}"))
     return cur.fetchall()
 
-# ====== HELPERS (TEXT/PDF/CHARTS) ======
 def build_stats_text(rows, title):
     if not rows:
         return f"{title}\n📭 Немає записів."
@@ -289,7 +281,10 @@ def profile_summary(user_id):
     if not u:
         return None, None
     name, currency, created = u
-    cur.execute("SELECT COUNT(*), SUM(CASE WHEN type='💸 Витрати' THEN amount ELSE 0 END), SUM(CASE WHEN type='💰 Надходження' THEN amount ELSE 0 END) FROM transactions WHERE user_id=?", (user_id,))
+    cur.execute("""SELECT COUNT(*),
+                          SUM(CASE WHEN type='💸 Витрати' THEN amount ELSE 0 END),
+                          SUM(CASE WHEN type='💰 Надходження' THEN amount ELSE 0 END)
+                   FROM transactions WHERE user_id=?""", (user_id,))
     cnt, exp_sum, inc_sum = cur.fetchone()
     exp_sum = exp_sum or 0
     inc_sum = inc_sum or 0
@@ -307,69 +302,102 @@ def profile_summary(user_id):
     )
     return text, currency
 
-# ====== RATES (NBU + CoinGecko) ======
-def fetch_nbu():
-    # НБУ: https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json
-    try:
-        r = requests.get("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json", timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        usd = next((x for x in data if str(x.get("r030")) == "840"), None)
-        eur = next((x for x in data if str(x.get("r030")) == "978"), None)
-        return float(usd["rate"]) if usd else None, float(eur["rate"]) if eur else None
-    except Exception:
-        return None, None
+# ===================== UI (Inline Keyboards) =====================
+def ikb(rows):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(t, callback_data=d) for (t, d) in row] for row in rows])
 
-def fetch_crypto_usd():
-    # CoinGecko simple price
-    try:
-        r = requests.get("https://api.coingecko.com/api/v3/simple/price",
-                         params={"ids": "bitcoin,ethereum", "vs_currencies": "usd"},
-                         timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        btc = float(data.get("bitcoin", {}).get("usd", 0) or 0)
-        eth = float(data.get("ethereum", {}).get("usd", 0) or 0)
-        return btc, eth
-    except Exception:
-        return None, None
+def kb_home_back(back_cb: str):
+    return ikb([
+        [("↩️ Назад", back_cb), ("🏠 Головне меню", "main:open")]
+    ])
 
-def rates_block(bot_data: dict) -> str:
-    rates = bot_data.get("rates", {})
-    usd = rates.get("usd_uah")
-    eur = rates.get("eur_uah")
-    btc = rates.get("btc_usd")
-    eth = rates.get("eth_usd")
-    if not (usd and eur and btc and eth):
-        return "📡 Котирування недоступні зараз. Спробуй пізніше."
-    def fmtn(v):  # формат гривні з комою
-        return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", " ")
-    def fmtd(v):  # формат долара з комою
-        return f"{v:,.0f}".replace(",", " ")
-    btc_uah = btc * usd
-    eth_uah = eth * usd
-    return (
-        "📈 КОТИРУВАННЯ (реальний час)\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        f"💵 Долар США: 1 USD = {fmtn(usd)} грн\n"
-        f"💶 Євро: 1 EUR = {fmtn(eur)} грн\n"
-        f"₿ Біткоїн: ${fmtd(btc)} ≈ {fmtn(btc_uah)} грн\n"
-        f"Ξ Ефір: ${fmtd(eth)} ≈ {fmtn(eth_uah)} грн"
-    )
+def main_menu_ikb():
+    return ikb([
+        [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
+        [("📈 Інвестиції", "type:inv"), ("📊 Статистика", "stats:open")],
+        [("👤 Мій профіль", "profile:open")]
+    ])
 
-async def refresh_rates_job(context: ContextTypes.DEFAULT_TYPE):
-    usd, eur = fetch_nbu()
-    btc, eth = fetch_crypto_usd()
-    # якщо щось впало — не перетираємо старі значення; оновлюємо тільки валідні
-    rates = context.bot_data.get("rates", {})
-    if usd: rates["usd_uah"] = usd
-    if eur: rates["eur_uah"] = eur
-    if btc: rates["btc_usd"] = btc
-    if eth: rates["eth_usd"] = eth
-    context.bot_data["rates"] = rates
-    context.bot_data["rates_updated"] = datetime.utcnow().isoformat()
+def categories_ikb(tname):
+    cats = list(CATEGORIES[tname].keys())
+    rows, row = [], []
+    for i, c in enumerate(cats):
+        row.append((c, f"cat:{i}"))
+        if len(row) == 2:
+            rows.append(row); row = []
+    if row: rows.append(row)
+    rows.append([("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")])
+    return ikb(rows)
 
-# ====== INTRO TEXT ======
+def subcategories_ikb(tname, cat_name):
+    subs = CATEGORIES[tname][cat_name]
+    rows = []
+    if subs:
+        row = []
+        for i, s in enumerate(subs):
+            row.append((s, f"sub:{i}"))
+            if len(row) == 2:
+                rows.append(row); row = []
+        if row: rows.append(row)
+    rows.append([("(без підкатегорії)", "sub:none")])
+    rows.append([("↩️ Назад", "back:cats"), ("🏠 Головне меню", "main:open")])
+    return ikb(rows)
+
+def stat_mode_ikb():
+    return ikb([
+        [("📅 За день", "stats:mode:day"), ("📅 За місяць", "stats:mode:mon")],
+        [("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]
+    ])
+
+def years_ikb():
+    y = datetime.now().year
+    return ikb([
+        [(str(y), f"stats:year:{y}"), (str(y-1), f"stats:year:{y-1}")],
+        [("↩️ Назад", "back:statsmode"), ("🏠 Головне меню", "main:open")]
+    ])
+
+def months_ikb():
+    rows, row = [], []
+    for m in range(1, 13):
+        row.append((MONTHS[m], f"stats:month:{m:02d}"))
+        if len(row) == 3:
+            rows.append(row); row = []
+    if row: rows.append(row)
+    rows.append([("↩️ Назад", "back:year"), ("🏠 Головне меню", "main:open")])
+    return ikb(rows)
+
+def days_ikb(year: int, month: int):
+    nd = calendar.monthrange(year, month)[1]
+    rows, row = [], []
+    for d in range(1, nd+1):
+        row.append((str(d), f"stats:day:{d:02d}"))
+        if len(row) == 7:
+            rows.append(row); row = []
+    if row: rows.append(row)
+    rows.append([("↩️ Назад", "back:month"), ("🏠 Головне меню", "main:open")])
+    return ikb(rows)
+
+def stats_actions_ikb():
+    return ikb([
+        [("📄 PDF", "stats:pdf"), ("🥧 Діаграма", "stats:pie")],
+        [("↩️ Назад", "back:statselect"), ("🏠 Головне меню", "main:open")]
+    ])
+
+def profile_menu_ikb():
+    return ikb([
+        [("✏️ Змінити ім’я", "profile:editname"), ("💱 Змінити валюту", "profile:editcur")],
+        [("📜 Увесь історичний PDF", "profile:allpdf")],
+        [("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]
+    ])
+
+def currency_pick_ikb(prefix: str):
+    # prefix: onb (онбординг) або prof (профіль)
+    return ikb([
+        [("грн", f"{prefix}:setcur:грн"), ("$", f"{prefix}:setcur:$")],
+        [("↩️ Назад", "back:main"), ("🏠 Головне меню", "main:open")]
+    ])
+
+# ===================== INTRO =====================
 INTRO_TEXT = (
     "━━━━━━━━━━━━━━━━━━━━\n"
     "🤖 ФІНАНСОВИЙ БОТ — ТВІЙ ОСОБИСТИЙ КАБІНЕТ\n"
@@ -378,329 +406,322 @@ INTRO_TEXT = (
     "• Записувати 💸 витрати, 💰 доходи, 📈 інвестиції\n"
     "• Показувати статистику за день або місяць (з деталями)\n"
     "• Будувати 🥧 діаграми витрат та генерувати 📄 PDF-звіти\n"
-    "• Зберігати історію транзакцій і профіль (ім’я, валюта)\n\n"
+    "• Зберігати історію транзакцій і профіль (ім’я, валюта)\n"
+    "• Показувати реальні курси валют/крипти (НБУ + CoinGecko)\n\n"
     "Починай із додавання запису або відкрий «📊 Статистика». Готовий? 🙂\n"
 )
 
-# ====== UTIL ======
+# ===================== SEND MAIN =====================
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str | None = None):
-    text = (greeting or "Меню:") + "\n\n" + rates_block(context.bot_data)
+    text = (greeting or "🏠 Головне меню") + "\n\n" + rates_block(context.application.bot_data)
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=main_menu_kb())
+        await update.callback_query.edit_message_text(text, reply_markup=main_menu_ikb())
     else:
-        await update.message.reply_text(text, reply_markup=main_menu_kb())
+        await update.message.reply_text(text, reply_markup=main_menu_ikb())
 
-# ====== HANDLERS ======
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    cur.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
-    if not cur.fetchone():
+# ===================== START / ONBOARD =====================
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    u = get_user(update.effective_user.id)
+    if not u:
         await update.message.reply_text("👋 Привіт! Як до тебе звертатись?")
-        return NAME
-    u = get_user(user_id)
+        return ASK_NAME
     await send_main_menu(update, context, f"👋 Привіт, {u[1]}!\n\n{INTRO_TEXT}")
-    return TYPE
+    return MAIN
 
 async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = (update.message.text or "").strip()
     if not name:
         await update.message.reply_text("Введи ім'я 🙂")
-        return NAME
-    context.user_data["name"] = name
-    await update.message.reply_text("Оберіть валюту:", reply_markup=currencies_kb())
-    return CURRENCY_SETUP
+        return ASK_NAME
+    context.user_data["pending_name"] = name
+    await update.message.reply_text("Оберіть валюту:", reply_markup=currency_pick_ikb("onb"))
+    return MAIN  # далі чекаємо callback onb:setcur:*
 
-async def save_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    curx = update.message.text
-    if curx not in CURRENCIES:
-        await update.message.reply_text("Будь ласка, обери валюту з кнопок:", reply_markup=currencies_kb())
-        return CURRENCY_SETUP
-    create_or_update_user(update.effective_user.id, context.user_data["name"], curx)
-    await send_main_menu(update, context, f"✅ Профіль створено!\n\n{INTRO_TEXT}")
-    return TYPE
+# ===================== CALLBACK ROUTER =====================
+async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    data = q.data
+    await q.answer()
+    uid = update.effective_user.id
 
-async def pick_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t not in TYPES:
-        await send_main_menu(update, context, "Будь ласка, користуйся кнопками нижче 👇")
-        return TYPE
-    if t == "📊 Статистика":
-        await update.message.reply_text("Оберіть режим:", reply_markup=stat_mode_kb())
-        return STAT_MODE
-    if t == "👤 Мій профіль":
-        txt, _ = profile_summary(update.effective_user.id)
-        if txt:
-            await update.message.reply_text(txt, reply_markup=profile_menu_kb())
-            return PROFILE_MENU
+    # -------- ГОЛОВНЕ МЕНЮ --------
+    if data == "main:open":
+        await send_main_menu(update, context, "🏠 Повернувся в головне меню")
+        return MAIN
+
+    # -------- ОНБОРДИНГ: валюта --------
+    if data.startswith("onb:setcur:"):
+        curx = data.split(":", 2)[2]
+        name = context.user_data.get("pending_name", "Користувач")
+        create_or_update_user(uid, name, curx)
+        await send_main_menu(update, context, f"✅ Профіль створено!\n\n{INTRO_TEXT}")
+        context.user_data.pop("pending_name", None)
+        return MAIN
+
+    # -------- ВИБІР ТИПУ (EXP/INC/INV) --------
+    if data.startswith("type:"):
+        code = data.split(":")[1]
+        tname = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}[code]
+        context.user_data["tname"] = tname
+        context.user_data["cat_list"] = list(CATEGORIES[tname].keys())
+        await q.edit_message_text(f"Обери категорію ({tname}):", reply_markup=categories_ikb(tname))
+        return MAIN
+
+    # -------- КАТЕГОРІЇ --------
+    if data == "back:main":
+        await send_main_menu(update, context, "↩️ Повернувся на головне меню")
+        return MAIN
+
+    if data.startswith("cat:"):
+        idx = int(data.split(":")[1])
+        cats = context.user_data.get("cat_list", [])
+        if idx < 0 or idx >= len(cats):
+            await q.edit_message_text("Обери категорію:", reply_markup=categories_ikb(context.user_data.get("tname", TYPES[0])))
+            return MAIN
+        cat_name = cats[idx]
+        context.user_data["cat_name"] = cat_name
+        tname = context.user_data["tname"]
+        await q.edit_message_text(f"Обери підкатегорію ({cat_name}):", reply_markup=subcategories_ikb(tname, cat_name))
+        return MAIN
+
+    # -------- ПІДКАТЕГОРІЇ --------
+    if data == "back:cats":
+        tname = context.user_data.get("tname", TYPES[0])
+        await q.edit_message_text(f"Обери категорію ({tname}):", reply_markup=categories_ikb(tname))
+        return MAIN
+
+    if data.startswith("sub:"):
+        val = data.split(":")[1]
+        tname = context.user_data.get("tname", TYPES[0])
+        cat_name = context.user_data.get("cat_name")
+        if val == "none":
+            context.user_data["sub_name"] = None
         else:
-            await update.message.reply_text("Профіль ще не створено. Напиши /start", reply_markup=main_menu_kb())
-            return TYPE
-    context.user_data["type"] = t
-    await update.message.reply_text("Вибери категорію:", reply_markup=categories_kb(t))
-    return CATEGORY
-
-async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    if text == "↩️ Назад":
-        await send_main_menu(update, context, "Повернувся в головне меню:")
-        return TYPE
-    if t is None or text not in CATEGORIES[t]:
-        await update.message.reply_text("Обери категорію:", reply_markup=categories_kb(t or "💸 Витрати"))
-        return CATEGORY
-    context.user_data["category"] = text
-    subs = CATEGORIES[t][text]
-    if subs:
-        await update.message.reply_text("Підкатегорія:", reply_markup=subcategories_kb(t, text))
-        return SUBCATEGORY
-    context.user_data["subcategory"] = None
-    await update.message.reply_text("Введи суму (наприклад 123.45):")
-    return AMOUNT
-
-async def pick_subcategory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    c = context.user_data.get("category")
-    if text == "↩️ Назад":
-        await update.message.reply_text("Вибери категорію:", reply_markup=categories_kb(t))
-        return CATEGORY
-    if text == "(без підкатегорії)":
-        context.user_data["subcategory"] = None
-    else:
-        subs = CATEGORIES[t][c] or []
-        if text not in subs:
-            await update.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(t, c))
-            return SUBCATEGORY
-        context.user_data["subcategory"] = text
-    await update.message.reply_text("Введи суму (наприклад 123.45):")
-    return AMOUNT
-
-async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.replace(",", ".").strip()
-    try:
-        amount = float(text)
-    except ValueError:
-        await update.message.reply_text("Сума має бути числом. Спробуй ще раз:")
+            subs = CATEGORIES[tname][cat_name] or []
+            idx = int(val)
+            if idx < 0 or idx >= len(subs):
+                await q.edit_message_text("Обери підкатегорію:", reply_markup=subcategories_ikb(tname, cat_name))
+                return MAIN
+            context.user_data["sub_name"] = subs[idx]
+        # просимо суму
+        await q.edit_message_text(
+            "Введи суму (наприклад 123.45):",
+            reply_markup=kb_home_back("back:cats")
+        )
         return AMOUNT
-    context.user_data["amount"] = amount
-    await update.message.reply_text("Додай коментар або '-' якщо без коментаря:")
-    return COMMENT
 
-async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comment = update.message.text
-    if comment == "-":
-        comment = None
-    user_id = update.effective_user.id
-    u = get_user(user_id)
-    currency = u[2] if u else "грн"
-    ud = context.user_data
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    save_tx(user_id, ud["type"], ud["category"], ud.get("subcategory"), ud["amount"], currency, comment, date_str)
-    await send_main_menu(update, context,
-        f"✅ Записано: {ud['type']} → {ud['category']} → {ud.get('subcategory', '-')}\n"
-        f"Сума: {ud['amount']} {currency}\nДата: {date_str}"
-    )
-    ud.clear()
-    return TYPE
+    # -------- СТАТИСТИКА --------
+    if data == "stats:open":
+        await q.edit_message_text("Оберіть режим:", reply_markup=stat_mode_ikb())
+        return MAIN
 
-# ====== STATS ======
-async def stat_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t == "↩️ Назад":
-        await send_main_menu(update, context, "Меню:")
-        return TYPE
-    if t not in ["📅 За день", "📅 За місяць"]:
-        await update.message.reply_text("Оберіть режим:", reply_markup=stat_mode_kb())
-        return STAT_MODE
-    context.user_data["stat_mode"] = t
-    await update.message.reply_text("Оберіть рік:", reply_markup=years_kb())
-    return STAT_YEAR
+    if data == "back:statsmode":
+        await q.edit_message_text("Оберіть режим:", reply_markup=stat_mode_ikb())
+        return MAIN
 
-async def stat_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text == "↩️ Назад":
-        await update.message.reply_text("Оберіть режим:", reply_markup=stat_mode_kb())
-        return STAT_MODE
-    if not text.isdigit():
-        await update.message.reply_text("Введи рік числом або обери кнопку:", reply_markup=years_kb())
-        return STAT_YEAR
-    context.user_data["year"] = int(text)
-    await update.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
-    return STAT_MONTH
+    if data.startswith("stats:mode:"):
+        mode = data.split(":")[2]  # day | mon
+        context.user_data["stat_mode"] = mode
+        await q.edit_message_text("Оберіть рік:", reply_markup=years_ikb())
+        return STAT_YEAR_SELECT
 
-async def stat_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text == "↩️ Назад":
-        await update.message.reply_text("Оберіть рік:", reply_markup=years_kb())
-        return STAT_YEAR
-    if text not in MONTHS_BY_NAME:
-        await update.message.reply_text("Оберіть місяць з кнопок:", reply_markup=months_kb())
-        return STAT_MONTH
-    m = MONTHS_BY_NAME[text]
-    context.user_data["month"] = m
-    if context.user_data.get("stat_mode") == "📅 За день":
-        y = context.user_data["year"]
-        await update.message.reply_text("Оберіть день:", reply_markup=days_kb(y, m))
-        return STAT_DAY
-    user_id = update.effective_user.id
-    rows = fetch_month(user_id, context.user_data["year"], m)
-    title = f"📆 {MONTHS[m]} {context.user_data['year']}"
-    context.user_data["last_report"] = ("month", rows, title)
-    await update.message.reply_text(build_stats_text(rows, title), reply_markup=stats_actions_kb())
-    return STAT_ACTION
+    if data == "back:year":
+        await q.edit_message_text("Оберіть рік:", reply_markup=years_ikb())
+        return STAT_YEAR_SELECT
 
-async def stat_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text == "↩️ Назад":
-        await update.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
-        return STAT_MONTH
-    if not text.isdigit():
-        await update.message.reply_text("Оберіть день:",
-                                        reply_markup=days_kb(context.user_data["year"], context.user_data["month"]))
-        return STAT_DAY
-    d = int(text)
-    y, m = context.user_data["year"], context.user_data["month"]
-    rows, date_str = fetch_day(update.effective_user.id, y, m, d)
-    title = f"📅 {d} {MONTHS[m]} {y}"
-    context.user_data["last_report"] = ("day", rows, title)
-    await update.message.reply_text(build_stats_text(rows, title), reply_markup=stats_actions_kb())
-    return STAT_ACTION
+    if data.startswith("stats:year:"):
+        y = int(data.split(":")[2])
+        context.user_data["year"] = y
+        await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
+        return STAT_MONTH_SELECT
 
-async def stat_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if text == "🏠 Головне меню":
-        await send_main_menu(update, context, "Меню:")
-        return TYPE
-    if text == "↩️ Назад":
+    if data == "back:month":
+        y = context.user_data.get("year", datetime.now().year)
+        await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
+        return STAT_MONTH_SELECT
+
+    if data.startswith("stats:month:"):
+        m = int(data.split(":")[2])
+        context.user_data["month"] = m
+        if context.user_data.get("stat_mode") == "day":
+            y = context.user_data["year"]
+            await q.edit_message_text("Оберіть день:", reply_markup=days_ikb(y, m))
+            return STAT_DAY
+        # за місяць
+        rows = fetch_month(uid, context.user_data["year"], m)
+        title = f"📆 {MONTHS[m]} {context.user_data['year']}"
+        context.user_data["last_report"] = ("month", rows, title)
+        await q.edit_message_text(build_stats_text(rows, title), reply_markup=stats_actions_ikb())
+        return MAIN
+
+    if data == "back:statselect":
+        # повернутися до вибору дня або місяця
         mode = context.user_data.get("stat_mode")
-        if mode == "📅 За день":
-            await update.message.reply_text("Оберіть день:",
-                                            reply_markup=days_kb(context.user_data["year"], context.user_data["month"]))
+        if mode == "day":
+            y = context.user_data.get("year", datetime.now().year)
+            m = context.user_data.get("month", datetime.now().month)
+            await q.edit_message_text("Оберіть день:", reply_markup=days_ikb(y, m))
             return STAT_DAY
         else:
-            await update.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
-            return STAT_MONTH
+            await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
+            return STAT_MONTH_SELECT
 
-    payload = context.user_data.get("last_report")
-    if not payload:
-        await update.message.reply_text("Спершу сформуй звіт.", reply_markup=main_menu_kb())
-        return TYPE
-    _, rows, title = payload
+    if data.startswith("stats:day:"):
+        d = int(data.split(":")[2])
+        y, m = context.user_data["year"], context.user_data["month"]
+        rows, _ = fetch_day(uid, y, m, d)
+        title = f"📅 {d} {MONTHS[m]} {y}"
+        context.user_data["last_report"] = ("day", rows, title)
+        await q.edit_message_text(build_stats_text(rows, title), reply_markup=stats_actions_ikb())
+        return MAIN
 
-    if text == "📄 PDF":
+    if data == "stats:pdf":
+        payload = context.user_data.get("last_report")
+        if not payload:
+            await q.answer("Спочатку сформуйте звіт.", show_alert=True)
+            return MAIN
+        _, rows, title = payload
         fname = "report.pdf"
         make_pdf(rows, title, fname)
         with open(fname, "rb") as f:
-            await update.message.reply_document(document=InputFile(f, filename=fname), caption=title)
-        # Після відправки PDF одразу показуємо кнопки далі
-        await update.message.reply_text("Що далі?", reply_markup=stats_actions_kb())
-        return STAT_ACTION
+            await q.message.reply_document(document=InputFile(f, filename=fname), caption=title)
+        await q.message.reply_text("Що далі?", reply_markup=stats_actions_ikb())
+        return MAIN
 
-    if text == "🥧 Діаграма":
+    if data == "stats:pie":
+        payload = context.user_data.get("last_report")
+        if not payload:
+            await q.answer("Спочатку сформуйте звіт.", show_alert=True)
+            return MAIN
+        _, rows, title = payload
         img = "pie.png"
         ok = make_pie_expenses(rows, f"Розподіл витрат — {title}", img)
         if not ok:
-            await update.message.reply_text("Немає даних по витратах для діаграми.", reply_markup=stats_actions_kb())
-            return STAT_ACTION
+            await q.answer("Немає даних по витратах для діаграми.", show_alert=True)
+            return MAIN
         with open(img, "rb") as f:
-            await update.message.reply_photo(photo=f, caption=f"Розподіл витрат — {title}")
-        # Після фото — теж кнопки
-        await update.message.reply_text("Що далі?", reply_markup=stats_actions_kb())
-        return STAT_ACTION
+            await q.message.reply_photo(photo=f, caption=f"Розподіл витрат — {title}")
+        await q.message.reply_text("Що далі?", reply_markup=stats_actions_ikb())
+        return MAIN
 
-    return STAT_ACTION
+    # -------- ПРОФІЛЬ --------
+    if data == "profile:open":
+        txt, _ = profile_summary(uid)
+        await q.edit_message_text(txt or "Профіль не знайдено", reply_markup=profile_menu_ikb())
+        return MAIN
 
-# ====== PROFILE ======
-async def profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t == "🏠 Головне меню":
-        await send_main_menu(update, context, "Меню:")
-        return TYPE
-    if t == "✏️ Змінити ім’я":
-        await update.message.reply_text("Введи нове ім’я:")
+    if data == "profile:editname":
+        await q.edit_message_text("Введи нове ім’я:", reply_markup=kb_home_back("back:main"))
         return PROFILE_EDIT_NAME
-    if t == "💱 Змінити валюту":
-        await update.message.reply_text("Оберіть нову валюту:", reply_markup=currencies_kb())
-        return PROFILE_EDIT_CURRENCY
-    if t == "📜 Увесь історичний PDF":
-        user_id = update.effective_user.id
+
+    if data == "profile:editcur":
+        await q.edit_message_text("Оберіть валюту:", reply_markup=currency_pick_ikb("prof"))
+        return MAIN
+
+    if data.startswith("prof:setcur:"):
+        curx = data.split(":", 2)[2]
+        cur.execute("UPDATE users SET currency=? WHERE user_id=?", (curx, uid))
+        conn.commit()
+        txt, _ = profile_summary(uid)
+        await q.edit_message_text("✅ Валюту оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
+        return MAIN
+
+    if data == "profile:allpdf":
         cur.execute("""SELECT type, category, subcategory, amount, currency, comment
-                       FROM transactions WHERE user_id=? ORDER BY date ASC, id ASC""", (user_id,))
+                       FROM transactions WHERE user_id=? ORDER BY date ASC, id ASC""", (uid,))
         rows = cur.fetchall()
         if not rows:
-            await update.message.reply_text("Поки що немає жодного запису.", reply_markup=profile_menu_kb())
-            return PROFILE_MENU
+            await q.answer("Поки що немає жодного запису.", show_alert=True)
+            return MAIN
         title = "Повний звіт за всі роки"
         fname = "all_history.pdf"
         make_pdf(rows, title, fname)
         with open(fname, "rb") as f:
-            await update.message.reply_document(InputFile(f, filename=fname), caption=title)
-        await update.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_kb())
-        return PROFILE_MENU
-    # Невідома команда — показати профіль знову
-    txt, _ = profile_summary(update.effective_user.id)
-    await update.message.reply_text(txt or "Профіль не знайдено", reply_markup=profile_menu_kb())
-    return PROFILE_MENU
+            await q.message.reply_document(InputFile(f, filename=fname), caption=title)
+        await q.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_ikb())
+        return MAIN
 
-async def profile_edit_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # -------- РЕЗЕРВ --------
+    await q.answer("Невідома дія.", show_alert=True)
+    return MAIN
+
+# ===================== TEXT INPUT HANDLERS =====================
+async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.message.text or "").replace(",", ".").strip()
+    try:
+        amount = float(text)
+    except ValueError:
+        await update.message.reply_text("Сума має бути числом. Спробуй ще раз:", reply_markup=kb_home_back("back:cats"))
+        return AMOUNT
+    context.user_data["amount"] = amount
+    await update.message.reply_text("Додай коментар або '-' якщо без:", reply_markup=kb_home_back("back:cats"))
+    return COMMENT
+
+async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    comment = update.message.text
+    if comment == "-":
+        comment = None
+    uid = update.effective_user.id
+    u = get_user(uid)
+    currency = u[2] if u else "грн"
+    tname = context.user_data.get("tname")
+    cat = context.user_data.get("cat_name")
+    sub = context.user_data.get("sub_name")
+    amount = context.user_data.get("amount")
+    if not all([tname, cat]) or amount is None:
+        await update.message.reply_text("Щось пішло не так. Повертаю у меню.", reply_markup=main_menu_ikb())
+        context.user_data.clear()
+        return MAIN
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    save_tx(uid, tname, cat, sub, amount, currency, comment, date_str)
+    context.user_data.clear()
+    await send_main_menu(update, context,
+        f"✅ Записано: {tname} → {cat} → {sub or '-'}\nСума: {amount:.2f} {currency}\nДата: {date_str}"
+    )
+    return MAIN
+
+async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = (update.message.text or "").strip()
     if not name:
-        await update.message.reply_text("Введи коректне ім’я 🙂")
+        await update.message.reply_text("Введи коректне ім’я 🙂", reply_markup=kb_home_back("back:main"))
         return PROFILE_EDIT_NAME
     cur.execute("UPDATE users SET name=? WHERE user_id=?", (name, update.effective_user.id))
     conn.commit()
     txt, _ = profile_summary(update.effective_user.id)
-    await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_kb())
-    return PROFILE_MENU
+    await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
+    return MAIN
 
-async def profile_edit_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    curx = update.message.text
-    if curx not in CURRENCIES:
-        await update.message.reply_text("Будь ласка, обери валюту з кнопок:", reply_markup=currencies_kb())
-        return PROFILE_EDIT_CURRENCY
-    cur.execute("UPDATE users SET currency=? WHERE user_id=?", (curx, update.effective_user.id))
-    conn.commit()
-    txt, _ = profile_summary(update.effective_user.id)
-    await update.message.reply_text("✅ Валюту оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_kb())
-    return PROFILE_MENU
+# ===================== ERROR-SAFE BACK FROM TEXT =====================
+# Якщо під час вводу тексту натиснули «Головне меню» чи «Назад» (inline),
+# це обробляється в on_cb() відповідними callback'ами.
 
-# ====== APP ======
+# ===================== APP =====================
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # JobQueue: оновлюємо курси щохвилини
-    async def on_startup(app_: Application):
-        # первинне оновлення одразу
-        await refresh_rates_job(ContextTypes.DEFAULT_TYPE(bot=app_.bot, application=app_, chat_data={}, user_data={}, bot_data=app_.bot_data))
-        app_.job_queue.run_repeating(refresh_rates_job, interval=60, first=0)
-
-    app.post_init = on_startup
+    # JobQueue: автооновлення курсів щохвилини
+    app.job_queue.run_repeating(refresh_rates_job, interval=60, first=0)
 
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[CommandHandler("start", cmd_start)],
         states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_name)],
-            CURRENCY_SETUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_currency)],
-
-            TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_type)],
-            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_category)],
-            SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_subcategory)],
-            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_amount)],
-            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_comment)],
-
-            STAT_MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_mode)],
-            STAT_YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_year)],
-            STAT_MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_month)],
-            STAT_DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_day)],
-            STAT_ACTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_action)],
-
-            PROFILE_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, profile_menu)],
-            PROFILE_EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, profile_edit_name)],
-            PROFILE_EDIT_CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, profile_edit_currency)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_name),
+                       CallbackQueryHandler(on_cb)],
+            MAIN: [CallbackQueryHandler(on_cb)],
+            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_amount),
+                     CallbackQueryHandler(on_cb)],
+            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_comment),
+                      CallbackQueryHandler(on_cb)],
+            STAT_YEAR_SELECT: [CallbackQueryHandler(on_cb)],
+            STAT_MONTH_SELECT: [CallbackQueryHandler(on_cb)],
+            STAT_DAY: [CallbackQueryHandler(on_cb)],
+            PROFILE_EDIT_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_edit_name),
+                                CallbackQueryHandler(on_cb)],
         },
-        fallbacks=[],
-        allow_reentry=True,
+        fallbacks=[CallbackQueryHandler(on_cb)],
+        allow_reentry=True
     )
+
     app.add_handler(conv)
     return app
 
