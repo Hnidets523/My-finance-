@@ -3,45 +3,126 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Фінансові статті</title>
+  <title>Фінансовий блог</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f9f9f9;
+      color: #333;
+    }
+    header {
+      background: linear-gradient(135deg, #1d976c, #93f9b9);
+      color: white;
+      padding: 50px 20px;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 2.5rem;
+      margin: 0;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 40px;
+      max-width: 1200px;
+      margin: auto;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: transform 0.2s ease-in-out;
+    }
+    .card:hover {
+      transform: scale(1.03);
+    }
+    .card img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+    }
+    .card-content {
+      padding: 20px;
+    }
+    .card-content h2 {
+      margin: 0 0 10px;
+      font-size: 1.3rem;
+    }
+    .card-content p {
+      font-size: 1rem;
+      color: #555;
+    }
+    .card-content a {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 10px 15px;
+      background: #1d976c;
+      color: white;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+    .card-content a:hover {
+      background: #159957;
+    }
+  </style>
 </head>
 <body>
   <header>
-    <h1>Фінансові поради</h1>
-    <p>Обирайте цікаву тему та вчіться керувати своїми фінансами професійно</p>
+    <h1>Фінансовий блог</h1>
+    <p>Поради з інвестування, економії та фінансової грамотності</p>
   </header>
 
-  <main class="articles-grid">
-    <a href="article1.html" class="card">
-      <img src="https://images.unsplash.com/photo-1553729784-e91953dec042" alt="Фінансова свобода">
-      <h2>Фінансова свобода</h2>
-      <p>Дізнайтеся, як побудувати стабільне фінансове майбутнє.</p>
-    </a>
-    <a href="article2.html" class="card">
-      <img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e" alt="Бюджет">
-      <h2>Планування бюджету</h2>
-      <p>Секрети ефективного планування та розподілу доходів.</p>
-    </a>
-    <a href="article3.html" class="card">
-      <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0" alt="Інвестиції">
-      <h2>Перші кроки в інвестиціях</h2>
-      <p>З чого почати інвестування і як уникнути помилок.</p>
-    </a>
-    <a href="article4.html" class="card">
-      <img src="https://images.unsplash.com/photo-1559526324-593bc073d938" alt="Психологія грошей">
-      <h2>Психологія грошей</h2>
-      <p>Як наші емоції впливають на фінансові рішення.</p>
-    </a>
-    <a href="article5.html" class="card">
-      <img src="https://images.unsplash.com/photo-1605902711622-cfb43c4437b5" alt="Фінансові помилки">
-      <h2>Як уникнути фінансових помилок</h2>
-      <p>Розповідаємо про основні пастки у світі фінансів.</p>
-    </a>
-  </main>
+  <main class="container">
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1623887466924-5bbfcd70b2f4" alt="Фінансова свобода">
+      <div class="card-content">
+        <h2>Фінансова свобода: як досягти стабільності</h2>
+        <p>Навчіться керувати бюджетом і досягати фінансової незалежності.</p>
+        <a href="article1.html">Читати</a>
+      </div>
+    </div>
 
-  <footer>
-    <p>© 2025 Фінансові поради</p>
-  </footer>
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1567427017947-545c5f8d16ad" alt="Планування бюджету">
+      <div class="card-content">
+        <h2>Як планувати бюджет ефективно</h2>
+        <p>Поради для тих, хто хоче контролювати витрати та збільшити заощадження.</p>
+        <a href="article2.html">Читати</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1542228262-3d663b30659b" alt="Інвестування">
+      <div class="card-content">
+        <h2>Інвестування для початківців</h2>
+        <p>Як почати інвестувати і не втратити гроші.</p>
+        <a href="article3.html">Читати</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1508387023470-83e26f3c6aa0" alt="Фінансова грамотність">
+      <div class="card-content">
+        <h2>Фінансова грамотність</h2>
+        <p>Основи фінансів для кожного, хто хоче жити впевнено.</p>
+        <a href="article4.html">Читати</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <img src="https://images.unsplash.com/photo-1604014237744-08f2fdbef6be" alt="Резервний фонд">
+      <div class="card-content">
+        <h2>Резервний фонд</h2>
+        <p>Як створити фінансовий захист на випадок кризи.</p>
+        <a href="article5.html">Читати</a>
+      </div>
+    </div>
+  </main>
 </body>
 </html>
