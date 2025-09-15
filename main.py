@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import calendar
 import logging
@@ -15,12 +16,17 @@ from telegram.ext import (
 # ---- PDF ----
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # ========= CONFIG =========
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
-ONLY_USER_ID = None  # за потреби вкажи свій Telegram ID
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Токен з Railway → Variables
+ONLY_USER_ID = None                 # Можеш вказати свій Telegram ID, щоб обмежити доступ
+
+# Зареєструємо кириличний шрифт (файл має лежати поруч з main.py)
+pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
 
 TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
 CURRENCIES = {"UAH": "грн", "USD": "$"}
@@ -216,7 +222,8 @@ def stats_text(user_id, year, month=None, day=None):
 def generate_pdf(transactions, filename, title):
     doc = SimpleDocTemplate(filename, pagesize=A4)
     styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles["Heading1"])]
+    styles.add(ParagraphStyle(name='NormalUkr', fontName='DejaVu', fontSize=11, leading=14))
+    elements = [Paragraph(title, styles["NormalUkr"])]
 
     data = [["Тип", "Категорія", "Підкатегорія", "Сума", "Валюта", "Коментар"]]
     totals = {"💸 Витрати": 0, "💰 Надходження": 0, "📈 Інвестиції": 0}
@@ -229,13 +236,15 @@ def generate_pdf(transactions, filename, title):
     for t in totals:
         data.append([t, "", "", f"{totals[t]:.2f}", "", ""])
 
-    table = Table(data, repeatRows=1)
+    table = Table(data, repeatRows=1, hAlign='LEFT')
     table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     elements.append(table)
     doc.build(elements)
@@ -243,9 +252,8 @@ def generate_pdf(transactions, filename, title):
 def allowed(user_id: int) -> bool:
     return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
 
-# ========= UTIL =========
 async def edit_or_send(q, text, kb=None):
-    """Редагує існуюче повідомлення або шле нове (на випадок, якщо старе вже не редагується)."""
+    """Редагує існуюче повідомлення або надсилає нове (якщо не можна редагувати)."""
     try:
         await q.message.edit_text(text, reply_markup=kb)
     except:
@@ -264,13 +272,13 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(txt, reply_markup=main_menu_kb())
     return S.TYPE
 
-# ========= CALLBACKS =========
+# ========= CALLBACKS (усі кнопки) =========
 async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     data = q.data
 
-    # Головне меню → вибір типу
+    # --- Головне меню → тип ---
     if data.startswith("type:"):
         code = data.split(":")[1]
         tname = TYPE_CODES[code]
@@ -284,7 +292,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_or_send(q, "Меню:", main_menu_kb())
         return S.TYPE
 
-    # Категорії
+    # --- Категорії ---
     if data.startswith("cat:"):
         idx = int(data.split(":")[1])
         tname = context.user_data["type"]
@@ -309,7 +317,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_or_send(q, "Вибери категорію:", categories_kb(tname))
         return S.CATEGORY
 
-    # Підкатегорії
+    # --- Підкатегорії ---
     if data.startswith("sub:"):
         if data == "sub:none":
             context.user_data["subcategory"] = None
@@ -324,7 +332,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_or_send(q, "Введи суму (наприклад 123.45):")
         return S.AMOUNT
 
-    # Валюта
+    # --- Валюта та назад ---
     if data == "back:amount":
         await edit_or_send(q, "Введи суму ще раз:")
         return S.AMOUNT
@@ -335,7 +343,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_or_send(q, "📝 Додай коментар або '-' якщо без:")
         return S.COMMENT
 
-    # Статистика
+    # --- Статистика ---
     if data == "stats:open" or data == "back:stats":
         await edit_or_send(q, "Оберіть режим:", stats_mode_kb())
         return S.STATS_MODE
@@ -421,21 +429,24 @@ async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         comment = None
 
     ud = context.user_data
+    # якщо користувач не вибрав валюту — UAH за замовчуванням
+    currency = ud.get("currency", CURRENCIES["UAH"])
     date_str = datetime.now().strftime("%Y-%m-%d")
+
     save_tx(
         update.effective_user.id,
         ud["type"],
         ud["category"],
         ud.get("subcategory"),
         ud["amount"],
-        ud.get("currency", CURRENCIES["UAH"]),
+        currency,
         comment,
         date_str
     )
     await update.message.reply_text(
         "✅ Записано:\n"
         f"{ud['type']} → {ud['category']} → {ud.get('subcategory','-')}\n"
-        f"Сума: {ud['amount']} {ud.get('currency', CURRENCIES['UAH'])}\n"
+        f"Сума: {ud['amount']} {currency}\n"
         f"Дата: {date_str}\n"
         f"Коментар: {comment or '-'}",
         reply_markup=main_menu_kb()
@@ -450,11 +461,14 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ========= APP =========
 def build_app():
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN не знайдено. Додай його в Railway → Variables.")
     app = Application.builder().token(BOT_TOKEN).build()
+
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", cmd_start)],
         states={
-            # callback-кроки
+            # callback-кроки (кнопки)
             S.TYPE: [CallbackQueryHandler(on_cb)],
             S.CATEGORY: [CallbackQueryHandler(on_cb)],
             S.SUBCATEGORY: [CallbackQueryHandler(on_cb)],
