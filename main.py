@@ -8,6 +8,7 @@ import random
 import json
 import time
 import requests
+from transformers import pipeline
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -35,7 +36,13 @@ import matplotlib.pyplot as plt
 # ===================== CONFIG =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).")
+    raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).)
+# Локальна модель для генерації тексту
+chatbot = pipeline("text-generation", model="sshleifer/tiny-gpt2")
+
+def ask_ai(prompt):
+    response = chatbot(prompt, max_length=100, num_return_sequences=1)
+    return response[0]["generated_text"]
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = os.getenv("HF_MODEL", "tiiuae/falcon-7b-instruct")
