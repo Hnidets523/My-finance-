@@ -1,75 +1,97 @@
 /* Загальні стилі */
 body {
   margin: 0;
-  font-family: 'Arial', sans-serif;
-  background: #121212;
-  color: #f0f0f0;
+  font-family: Arial, sans-serif;
+  background: #1a1a1a;
+  color: #f1f1f1;
   line-height: 1.6;
 }
 
-/* Шапка */
+/* Заголовок */
 header {
   text-align: center;
   padding: 30px 10px;
-  background: #1f1f1f;
-  border-bottom: 2px solid #333;
-}
-header h1 {
-  font-size: 2rem;
-  margin-bottom: 10px;
-}
-header p {
-  font-size: 1.1rem;
-  color: #bbb;
+  background: #222;
+  border-bottom: 2px solid #444;
 }
 
-/* Контейнер карток */
+header h1 {
+  margin: 0;
+  font-size: 2.5em;
+}
+
+header p {
+  color: #ccc;
+}
+
+/* Контейнер карточок */
 .card-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 20px;
   padding: 30px;
 }
 
-/* Картка */
+/* Карточка */
 .card {
-  background: #1f1f1f;
-  border-radius: 12px;
+  background: #2a2a2a;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  width: 300px;
+  text-align: center;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
   transition: transform 0.3s ease;
 }
+
 .card:hover {
-  transform: scale(1.03);
+  transform: scale(1.05);
 }
+
 .card img {
   width: 100%;
-  height: 180px;
+  height: 200px;
   object-fit: cover;
 }
+
 .card h2 {
-  font-size: 1.3rem;
-  margin: 15px;
+  font-size: 1.4em;
+  margin: 15px 0 10px;
+  color: #fff;
 }
+
 .card p {
-  font-size: 1rem;
-  margin: 0 15px 15px;
-  color: #ccc;
+  color: #bbb;
+  padding: 0 15px;
+  font-size: 0.95em;
 }
 
 /* Кнопка */
 .btn {
-  display: block;
-  text-align: center;
-  margin: 0 15px 20px;
-  padding: 10px;
-  background: #ff9800;
-  color: #121212;
-  font-weight: bold;
+  display: inline-block;
+  background: linear-gradient(45deg, #007bff, #00d4ff);
+  color: #fff;
+  padding: 10px 20px;
+  margin: 15px 0 20px;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 25px;
+  font-weight: bold;
   transition: background 0.3s;
 }
+
 .btn:hover {
-  background: #ffa726;
+  background: linear-gradient(45deg, #0056b3, #00a3cc);
+}
+
+/* Стаття */
+article {
+  padding: 20px;
+  max-width: 800px;
+  margin: auto;
+}
+
+article img {
+  width: 100%;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
