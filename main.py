@@ -1,23 +1,30 @@
 import sqlite3
-from datetime import datetime
 import calendar
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InputFile
+import logging
+from enum import Enum, auto
+from datetime import datetime
+
+from telegram import (
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+)
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ContextTypes, filters,
-    ConversationHandler
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, ConversationHandler, filters
 )
 
-# PDF
+# -------- PDF --------
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 
-# ====== CONFIG ======
-BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"  # твій токен
-ONLY_USER_ID = None  # за бажанням: вкажи свій Telegram ID, щоб обмежити доступ
 
-TYPES = ["💸 Витрати", "💰 Надходження", "📈 Інвестиції", "📊 Статистика"]
+# ========= CONFIG =========
+BOT_TOKEN = "8420371366:AAG9UfAnEqKyrk5v1DOPHvh7hlp1ZDtHJy8"
+ONLY_USER_ID = None  # за потреби вкажи свій Telegram ID
+
+TYPE_CODES = {"exp": "💸 Витрати", "inc": "💰 Надходження", "inv": "📈 Інвестиції"}
+CURRENCIES = {"UAH": "грн", "USD": "$"}
 
 MONTH_NAMES = {
     "01": "Січень", "02": "Лютий", "03": "Березень", "04": "Квітень",
@@ -51,11 +58,8 @@ CATEGORIES = {
     },
 }
 
-CURRENCIES = ["грн", "$"]
-STATS_MODES = ["📆 За місяць", "📅 За день", "↩️ Назад"]
-PDF_OPTION = ["📄 Завантажити PDF-звіт", "↩️ Назад"]
 
-# ====== DB ======
+# ========= DB =========
 DB_PATH = "finance.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
@@ -75,88 +79,119 @@ CREATE TABLE IF NOT EXISTS transactions (
 """)
 conn.commit()
 
-# ====== STATES ======
-TYPE, CATEGORY, SUBCATEGORY, AMOUNT, CURRENCY, COMMENT, STATS_MODE, YEAR, MONTH, DAY, PDF = range(11)
 
-# ====== KEYBOARDS ======
-def kb(rows):
-    return ReplyKeyboardMarkup([[KeyboardButton(x) for x in row] for row in rows], resize_keyboard=True)
+# ========= STATES (Enum) =========
+class S(Enum):
+    TYPE = auto()
+    CATEGORY = auto()
+    SUBCATEGORY = auto()
+    AMOUNT = auto()
+    CURRENCY = auto()
+    COMMENT = auto()
+    STATS_MODE = auto()
+    YEAR = auto()
+    MONTH = auto()
+    DAY = auto()
+    PDF = auto()
+
+
+# ========= LOGGING =========
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("finance-bot")
+
+
+# ========= HELPERS =========
+def ikb(rows):
+    """rows = [[(text, data), ...], ...]"""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(t, callback_data=d) for (t, d) in row] for row in rows]
+    )
+
 
 def main_menu_kb():
-    return kb([TYPES])
+    return ikb([
+        [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
+        [("📈 Інвестиції", "type:inv")],
+        [("📊 Статистика", "stats:open")]
+    ])
 
-def categories_kb(for_type):
-    cats = list(CATEGORIES[for_type].keys())
+
+def categories_kb(tname):
+    cats = list(CATEGORIES[tname].keys())
     rows, row = [], []
-    for c in cats:
-        row.append(c)
+    for i, c in enumerate(cats):
+        row.append((c, f"cat:{i}"))
         if len(row) == 2:
             rows.append(row); row = []
     if row: rows.append(row)
-    rows.append(["↩️ Назад"])
-    return kb(rows)
+    rows.append([("⬅ Назад", "back:main")])
+    return ikb(rows)
 
-def subcategories_kb(for_type, category):
-    subs = CATEGORIES[for_type][category]
+
+def subcategories_kb(tname, cat_name):
+    subs = CATEGORIES[tname][cat_name]
     rows = []
     if subs:
         row = []
-        for s in subs:
-            row.append(s)
+        for i, s in enumerate(subs):
+            row.append((s, f"sub:{i}"))
             if len(row) == 2:
                 rows.append(row); row = []
         if row: rows.append(row)
-    rows.append(["(без підкатегорії)", "↩️ Назад"])
-    return kb(rows)
+    rows.append([("(без підкатегорії)", "sub:none")])
+    rows.append([("⬅ Назад", "back:cats")])
+    return ikb(rows)
+
 
 def currencies_kb():
-    return kb([CURRENCIES, ["↩️ Назад"]])
+    return ikb([
+        [(CURRENCIES["UAH"], "cur:UAH"), (CURRENCIES["USD"], "cur:USD")],
+        [("⬅ Назад", "back:amount")]
+    ])
 
-def stats_modes_kb():
-    return kb([STATS_MODES])
+
+def stats_mode_kb():
+    return ikb([
+        [("📆 За місяць", "stats:mode:month"), ("📅 За день", "stats:mode:day")],
+        [("⬅ Назад", "back:main")]
+    ])
+
 
 def years_kb():
-    now = datetime.now()
-    years = [str(y) for y in range(now.year - 2, now.year + 1)]
-    return kb([years, ["↩️ Назад"]])
+    now = datetime.now().year
+    years = [str(y) for y in range(now - 2, now + 1)]
+    row = [(y, f"stats:year:{y}") for y in years]
+    return ikb([row, [("⬅ Назад", "back:stats")]])
+
 
 def months_kb():
     months = [
-        ["Січень", "Лютий", "Березень"],
-        ["Квітень", "Травень", "Червень"],
-        ["Липень", "Серпень", "Вересень"],
-        ["Жовтень", "Листопад", "Грудень"]
+        ("Січень", "01"), ("Лютий", "02"), ("Березень", "03"),
+        ("Квітень", "04"), ("Травень", "05"), ("Червень", "06"),
+        ("Липень", "07"), ("Серпень", "08"), ("Вересень", "09"),
+        ("Жовтень", "10"), ("Листопад", "11"), ("Грудень", "12")
     ]
-    months.append(["↩️ Назад"])
-    return kb(months)
+    rows, row = [], []
+    for title, num in months:
+        row.append((title, f"stats:month:{num}"))
+        if len(row) == 3:
+            rows.append(row); row = []
+    if row: rows.append(row)
+    rows.append([("⬅ Назад", "back:year")])
+    return ikb(rows)
 
-def month_to_number(name):
-    for num, n in MONTH_NAMES.items():
-        if n == name:
-            return num
-    return "01"
 
 def days_kb(year, month):
-    days_in_month = calendar.monthrange(int(year), int(month))[1]
-    days = [str(i) for i in range(1, days_in_month + 1)]
-    rows = [days[i:i+7] for i in range(0, len(days), 7)]
-    rows.append(["↩️ Назад"])
-    return kb(rows)
+    last = calendar.monthrange(int(year), int(month))[1]
+    rows, row = [], []
+    for d in range(1, last + 1):
+        row.append((str(d), f"stats:day:{d:02d}"))
+        if len(row) == 7:
+            rows.append(row); row = []
+    if row: rows.append(row)
+    rows.append([("⬅ Назад", "back:month")])
+    return ikb(rows)
 
-# ====== DB HELPERS ======
-def fetch_transactions(user_id, year, month=None, day=None):
-    if day:
-        date_str = f"{year}-{month}-{day.zfill(2)}"
-        query = "SELECT type, category, subcategory, amount, currency, comment FROM transactions WHERE user_id=? AND date=?"
-        params = (user_id, date_str)
-    else:
-        query = """
-            SELECT type, category, subcategory, amount, currency, comment FROM transactions
-            WHERE user_id=? AND strftime('%Y', date)=? AND strftime('%m', date)=?
-        """
-        params = (user_id, str(year), str(month).zfill(2))
-    cur.execute(query, params)
-    return cur.fetchall()
 
 def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     cur.execute("""
@@ -165,23 +200,51 @@ def save_tx(user_id, ttype, cat, sub, amount, currency, comment, date_str):
     """, (user_id, ttype, cat, sub, amount, currency, comment, date_str, datetime.utcnow().isoformat()))
     conn.commit()
 
-# ====== PDF ======
+
+def fetch_transactions(user_id, year, month=None, day=None):
+    if day:
+        date_str = f"{year}-{month}-{day}"
+        q = """SELECT type, category, subcategory, amount, currency, comment
+               FROM transactions WHERE user_id=? AND date=?"""
+        cur.execute(q, (user_id, date_str))
+    else:
+        q = """SELECT type, category, subcategory, amount, currency, comment
+               FROM transactions
+               WHERE user_id=? AND strftime('%Y', date)=? AND strftime('%m', date)=?"""
+        cur.execute(q, (user_id, str(year), str(month)))
+    return cur.fetchall()
+
+
+def stats_text(user_id, year, month=None, day=None):
+    tx = fetch_transactions(user_id, year, month, day)
+    title = f"📅 {day} {MONTH_NAMES[month]} {year}" if day else f"📆 {MONTH_NAMES[month]} {year}"
+    if not tx:
+        return f"{title}\n📭 Немає записів.", tx
+
+    sums = {"💸 Витрати": 0, "💰 Надходження": 0, "📈 Інвестиції": 0}
+    lines = []
+    for t, cat, sub, amt, curr, com in tx:
+        sums[t] += amt
+        lines.append(f"- {t} | {cat}/{sub or '-'}: {amt:.2f} {curr} ({com or '-'})")
+    totals = "\n".join([f"{t}: {sums[t]:.2f}" for t in sums])
+    return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{totals}", tx
+
+
 def generate_pdf(transactions, filename, title):
     doc = SimpleDocTemplate(filename, pagesize=A4)
     styles = getSampleStyleSheet()
     elements = [Paragraph(title, styles["Heading1"])]
 
     data = [["Тип", "Категорія", "Підкатегорія", "Сума", "Валюта", "Коментар"]]
-    total = {"💸 Витрати": 0, "💰 Надходження": 0, "📈 Інвестиції": 0}
+    totals = {"💸 Витрати": 0, "💰 Надходження": 0, "📈 Інвестиції": 0}
 
     for t, cat, sub, amt, curr, com in transactions:
-        total[t] += amt
-        data.append([t, cat, sub if sub else "-", f"{amt:.2f}", curr, com if com else "-"])
+        totals[t] += amt
+        data.append([t, cat, sub or "-", f"{amt:.2f}", curr, com or "-"])
 
-    # Порожній рядок і підсумки
     data.append(["", "", "", "", "", ""])
-    for t in total:
-        data.append([t, "", "", f"{total[t]:.2f}", "", ""])
+    for t in totals:
+        data.append([t, "", "", f"{totals[t]:.2f}", "", ""])
 
     table = Table(data, repeatRows=1)
     table.setStyle(TableStyle([
@@ -194,207 +257,186 @@ def generate_pdf(transactions, filename, title):
     elements.append(table)
     doc.build(elements)
 
-# ====== STATS TEXT ======
-def get_detailed_stats_text(user_id, year, month=None, day=None):
-    transactions = fetch_transactions(user_id, year, month, day)
 
-    if day:
-        title = f"📅 Детальна статистика за {day.zfill(2)} {MONTH_NAMES[month]} {year}:"
-    else:
-        title = f"📆 Детальна статистика за {MONTH_NAMES[month]} {year}:"
-
-    if not transactions:
-        return title + "\n📭 Немає записів.", transactions
-
-    summary = {t: 0 for t in ["💸 Витрати", "💰 Надходження", "📈 Інвестиції"]}
-    lines = []
-    for t, cat, sub, amt, curr, com in transactions:
-        summary[t] += amt
-        lines.append(f"- {t} | {cat} / {sub if sub else '-'}: {amt:.2f} {curr} ({com if com else '-'})")
-
-    totals = "\n".join([f"{t}: {summary[t]:.2f}" for t in summary])
-    text = f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{totals}"
-    return text, transactions
-
-# ====== GUARDS (опційно обмеження користувача) ======
-def is_allowed(user_id: int) -> bool:
+def allowed(user_id: int) -> bool:
     return (ONLY_USER_ID is None) or (user_id == ONLY_USER_ID)
 
-# ====== HANDLERS ======
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_allowed(update.effective_user.id):
+
+# ========= ENTRY / MENU =========
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not allowed(update.effective_user.id):
         await update.message.reply_text("⛔ Доступ обмежено.")
         return ConversationHandler.END
 
-    await update.message.reply_text(
-        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n"
-        "💸 Додавай витрати\n💰 Фіксуй доходи\n📈 Облік інвестицій\n📊 Переглядай статистику\n\n"
-        "Засновник: @hnidets011",
-        reply_markup=main_menu_kb()
+    txt = (
+        "👋 Привіт! Я — фінансовий бот для обліку витрат, доходів та інвестицій.\n\n"
+        "Натискай кнопки нижче.\n"
+        "Засновник: @hnidets011"
     )
-    return TYPE
+    await update.message.reply_text(txt, reply_markup=main_menu_kb())
+    return S.TYPE
 
-async def pick_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t == "📊 Статистика":
-        await update.message.reply_text("Оберіть режим:", reply_markup=stats_modes_kb())
-        return STATS_MODE
-    if t not in TYPES:
-        await update.message.reply_text("Будь ласка, оберіть кнопку:", reply_markup=main_menu_kb())
-        return TYPE
-    context.user_data["type"] = t
-    await update.message.reply_text("Виберіть категорію:", reply_markup=categories_kb(t))
-    return CATEGORY
 
-async def choose_stats_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mode = update.message.text
-    if mode == "↩️ Назад":
-        await update.message.reply_text("Головне меню:", reply_markup=main_menu_kb())
-        return TYPE
-    context.user_data["stats_mode"] = mode
-    await update.message.reply_text("Оберіть рік:", reply_markup=years_kb())
-    return YEAR
+# ========= CALLBACK ROUTER (усі inline-кнопки тут) =========
+async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    data = q.data
+    log.info("cb: %s", data)
 
-async def choose_year(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    year = update.message.text
-    if year == "↩️ Назад":
-        await update.message.reply_text("Повернувся до режимів:", reply_markup=stats_modes_kb())
-        return STATS_MODE
-    context.user_data["year"] = year
-    await update.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
-    return MONTH
+    # ---- головне меню
+    if data.startswith("type:"):
+        code = data.split(":")[1]
+        tname = TYPE_CODES[code]
+        context.user_data.clear()
+        context.user_data["type"] = tname
+        # збережемо список категорій, щоб працювати по індексах
+        context.user_data["cat_list"] = list(CATEGORIES[tname].keys())
+        await q.message.reply_text("Вибери категорію:", reply_markup=categories_kb(tname))
+        return S.CATEGORY
 
-async def choose_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    month_name = update.message.text
-    if month_name == "↩️ Назад":
-        await update.message.reply_text("Повернувся до вибору року:", reply_markup=years_kb())
-        return YEAR
+    if data == "back:main":
+        await q.message.reply_text("Головне меню:", reply_markup=main_menu_kb())
+        return S.TYPE
 
-    month_num = month_to_number(month_name)
-    context.user_data["month"] = month_num
+    # ---- категорії / підкатегорії
+    if data.startswith("cat:"):
+        idx = int(data.split(":")[1])
+        tname = context.user_data.get("type")
+        cats = context.user_data.get("cat_list", [])
+        if idx < 0 or idx >= len(cats):
+            await q.message.reply_text("Некоректна категорія. Обери ще раз:", reply_markup=categories_kb(tname))
+            return S.CATEGORY
+        cat_name = cats[idx]
+        context.user_data["category"] = cat_name
+        subs = CATEGORIES[tname][cat_name]
+        if subs:
+            context.user_data["sub_list"] = subs
+            await q.message.reply_text("Підкатегорія:", reply_markup=subcategories_kb(tname, cat_name))
+            return S.SUBCATEGORY
+        else:
+            context.user_data["subcategory"] = None
+            await q.message.reply_text("Введи суму (наприклад 123.45):")
+            return S.AMOUNT
 
-    if context.user_data.get("stats_mode") == "📆 За місяць":
-        text, transactions = get_detailed_stats_text(update.effective_user.id, context.user_data["year"], month_num)
-        context.user_data["transactions"] = transactions
-        context.user_data["day"] = None
-        await update.message.reply_text(text, reply_markup=kb([PDF_OPTION]))
-        return PDF
+    if data == "back:cats":
+        tname = context.user_data.get("type")
+        await q.message.reply_text("Вибери категорію:", reply_markup=categories_kb(tname))
+        return S.CATEGORY
 
-    await update.message.reply_text("Оберіть день:", reply_markup=days_kb(context.user_data["year"], month_num))
-    return DAY
+    if data.startswith("sub:"):
+        tname = context.user_data.get("type")
+        if data == "sub:none":
+            context.user_data["subcategory"] = None
+        else:
+            idx = int(data.split(":")[1])
+            subs = context.user_data.get("sub_list", [])
+            if idx < 0 or idx >= len(subs):
+                await q.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(tname, context.user_data["category"]))
+                return S.SUBCATEGORY
+            context.user_data["subcategory"] = subs[idx]
+        await q.message.reply_text("Введи суму (наприклад 123.45):")
+        return S.AMOUNT
 
-async def choose_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    day = update.message.text
-    if day == "↩️ Назад":
-        await update.message.reply_text("Повернувся до вибору місяця:", reply_markup=months_kb())
-        return MONTH
+    # ---- валюта (inline)
+    if data == "back:amount":
+        await q.message.reply_text("Введи суму ще раз:")
+        return S.AMOUNT
 
-    text, transactions = get_detailed_stats_text(
-        update.effective_user.id,
-        context.user_data["year"],
-        context.user_data["month"],
-        day
-    )
-    context.user_data["transactions"] = transactions
-    context.user_data["day"] = day
-    await update.message.reply_text(text, reply_markup=kb([PDF_OPTION]))
-    return PDF
+    if data.startswith("cur:"):
+        code = data.split(":")[1]  # UAH / USD
+        context.user_data["currency"] = CURRENCIES[code]
+        await q.message.reply_text("📝 Додай коментар або напиши '-' якщо без:")
+        return S.COMMENT
 
-async def pdf_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    choice = update.message.text
-    if choice == "↩️ Назад":
-        await update.message.reply_text("Повернувся до режимів:", reply_markup=stats_modes_kb())
-        return STATS_MODE
+    # ---- Статистика
+    if data == "stats:open" or data == "back:stats":
+        await q.message.reply_text("Оберіть режим:", reply_markup=stats_mode_kb())
+        return S.STATS_MODE
 
-    if choice != "📄 Завантажити PDF-звіт":
-        await update.message.reply_text("Оберіть дію:", reply_markup=kb([PDF_OPTION]))
-        return PDF
+    if data.startswith("stats:mode:"):
+        mode = data.split(":")[2]  # month/day
+        context.user_data["stats_mode"] = mode
+        await q.message.reply_text("Оберіть рік:", reply_markup=years_kb())
+        return S.YEAR
 
-    transactions = context.user_data.get("transactions", [])
-    if not transactions:
-        await update.message.reply_text("📭 Немає даних для PDF.")
-        return STATS_MODE
+    if data == "back:year":
+        await q.message.reply_text("Оберіть рік:", reply_markup=years_kb())
+        return S.YEAR
 
-    year = context.user_data.get("year")
-    month = context.user_data.get("month")
-    day = context.user_data.get("day")
+    if data.startswith("stats:year:"):
+        year = data.split(":")[2]
+        context.user_data["year"] = year
+        await q.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
+        return S.MONTH
 
-    title = (
-        f"Звіт за {day.zfill(2)} {MONTH_NAMES[month]} {year}"
-        if day else f"Звіт за {MONTH_NAMES[month]} {year}"
-    )
-    filename = "report.pdf"
-    generate_pdf(transactions, filename, title)
+    if data == "back:month":
+        await q.message.reply_text("Оберіть місяць:", reply_markup=months_kb())
+        return S.MONTH
 
-    with open(filename, "rb") as f:
-        await update.message.reply_document(InputFile(f, filename))
-    await update.message.reply_text("✅ Ось ваш PDF-звіт", reply_markup=stats_modes_kb())
-    return STATS_MODE
+    if data.startswith("stats:month:"):
+        month = data.split(":")[2]  # "01".."12"
+        context.user_data["month"] = month
+        if context.user_data.get("stats_mode") == "month":
+            text, tx = stats_text(update.effective_user.id, context.user_data["year"], month)
+            context.user_data["tx"] = tx
+            context.user_data["day"] = None
+            kb = ikb([[("📄 Завантажити PDF-звіт", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+            await q.message.reply_text(text, reply_markup=kb)
+            return S.PDF
+        else:
+            await q.message.reply_text("Оберіть день:", reply_markup=days_kb(context.user_data["year"], month))
+            return S.DAY
 
-# ==== Додавання транзакцій ====
-async def pick_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    if text == "↩️ Назад":
-        await update.message.reply_text("Головне меню:", reply_markup=main_menu_kb())
-        return TYPE
-    if t not in CATEGORIES or text not in CATEGORIES[t]:
-        await update.message.reply_text("Обери категорію:", reply_markup=categories_kb(t))
-        return CATEGORY
-    context.user_data["category"] = text
-    subs = CATEGORIES[t][text]
-    if subs:
-        await update.message.reply_text("Підкатегорія:", reply_markup=subcategories_kb(t, text))
-        return SUBCATEGORY
-    context.user_data["subcategory"] = None
-    await update.message.reply_text("Введи суму:")
-    return AMOUNT
+    if data.startswith("stats:day:"):
+        day = data.split(":")[2]
+        context.user_data["day"] = day
+        text, tx = stats_text(update.effective_user.id, context.user_data["year"], context.user_data["month"], day)
+        context.user_data["tx"] = tx
+        kb = ikb([[("📄 Завантажити PDF-звіт", "stats:pdf")], [("⬅ Назад", "back:stats")]])
+        await q.message.reply_text(text, reply_markup=kb)
+        return S.PDF
 
-async def pick_subcategory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    t = context.user_data.get("type")
-    c = context.user_data.get("category")
-    if text == "↩️ Назад":
-        await update.message.reply_text("Категорії:", reply_markup=categories_kb(t))
-        return CATEGORY
-    if text == "(без підкатегорії)":
-        context.user_data["subcategory"] = None
-    else:
-        subs = CATEGORIES[t][c] or []
-        if text not in subs:
-            await update.message.reply_text("Обери підкатегорію:", reply_markup=subcategories_kb(t, c))
-            return SUBCATEGORY
-        context.user_data["subcategory"] = text
-    await update.message.reply_text("Введи суму:")
-    return AMOUNT
+    if data == "stats:pdf":
+        tx = context.user_data.get("tx", [])
+        if not tx:
+            await q.message.reply_text("📭 Немає даних для PDF.")
+            return S.STATS_MODE
 
-async def pick_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.replace(",", ".").strip()
+        year = context.user_data.get("year")
+        month = context.user_data.get("month")
+        day = context.user_data.get("day")
+        title = f"Звіт за {day} {MONTH_NAMES[month]} {year}" if day else f"Звіт за {MONTH_NAMES[month]} {year}"
+        filename = "report.pdf"
+        generate_pdf(tx, filename, title)
+        with open(filename, "rb") as f:
+            await q.message.reply_document(InputFile(f, filename))
+        await q.message.reply_text("✅ Готово", reply_markup=stats_mode_kb())
+        return S.STATS_MODE
+
+    # на всі інші випадки
+    await q.message.reply_text("Не впізнав дію. Повертаюсь у меню.", reply_markup=main_menu_kb())
+    return S.TYPE
+
+
+# ========= TEXT HANDLERS (сума/коментар) =========
+async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (update.message.text or "").replace(",", ".").strip()
     try:
         amount = float(text)
-    except ValueError:
-        await update.message.reply_text("Сума має бути числом:")
-        return AMOUNT
+    except Exception:
+        await update.message.reply_text("Сума має бути числом. Приклад: 123.45")
+        return S.AMOUNT
     context.user_data["amount"] = amount
-    await update.message.reply_text("💱 Обери валюту:", reply_markup=currencies_kb())
-    return CURRENCY
+    await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
+    return S.CURRENCY
 
-async def pick_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "↩️ Назад":
-        await update.message.reply_text("Введи суму ще раз:")
-        return AMOUNT
-    if text not in CURRENCIES:
-        await update.message.reply_text("Обери валюту:", reply_markup=currencies_kb())
-        return CURRENCY
-    context.user_data["currency"] = text
-    await update.message.reply_text("📝 Додай коментар або напиши '-' якщо без:", reply_markup=kb([["-"]]))
-    return COMMENT
 
-async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    comment = update.message.text
-    if comment.strip() == "-":
+async def on_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    comment = update.message.text.strip()
+    if comment == "-":
         comment = None
+
     ud = context.user_data
     date_str = datetime.now().strftime("%Y-%m-%d")
     save_tx(
@@ -408,40 +450,66 @@ async def pick_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         date_str
     )
     await update.message.reply_text(
-        f"✅ Записано:\n{ud['type']} → {ud['category']} → {ud.get('subcategory', '-')}\n"
-        f"Сума: {ud['amount']} {ud['currency']}\nДата: {date_str}\nКоментар: {comment if comment else '-'}"
+        "✅ Записано:\n"
+        f"{ud['type']} → {ud['category']} → {ud.get('subcategory','-')}\n"
+        f"Сума: {ud['amount']} {ud['currency']}\n"
+        f"Дата: {date_str}\n"
+        f"Коментар: {comment or '-'}"
     )
     ud.clear()
-    await update.message.reply_text("Що далі?", reply_markup=main_menu_kb())
-    return TYPE
+    await update.message.reply_text("Меню:", reply_markup=main_menu_kb())
+    return S.TYPE
 
-# ====== APP START ======
+
+# ========= CANCEL / FALLBACK =========
+async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    await update.message.reply_text("Скасовано. Меню:", reply_markup=main_menu_kb())
+    return S.TYPE
+
+
+async def on_unexpected_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # якщо раптом текст прилетів у “клік-сценах” — просимо натиснути кнопку
+    await update.message.reply_text("Будь ласка, користуйся кнопками нижче 👇", reply_markup=main_menu_kb())
+    return S.TYPE
+
+
+# ========= APP =========
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
+
     conv = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[CommandHandler("start", cmd_start)],
         states={
-            TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_type)],
-            STATS_MODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_stats_mode)],
-            YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_year)],
-            MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_month)],
-            DAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_day)],
-            PDF: [MessageHandler(filters.TEXT & ~filters.COMMAND, pdf_menu)],
-            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_category)],
-            SUBCATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_subcategory)],
-            AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_amount)],
-            CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_currency)],
-            COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, pick_comment)],
+            # усі inline-натискання
+            S.TYPE: [CallbackQueryHandler(on_cb)],
+            S.CATEGORY: [CallbackQueryHandler(on_cb)],
+            S.SUBCATEGORY: [CallbackQueryHandler(on_cb)],
+            S.CURRENCY: [CallbackQueryHandler(on_cb)],
+            S.STATS_MODE: [CallbackQueryHandler(on_cb)],
+            S.YEAR: [CallbackQueryHandler(on_cb)],
+            S.MONTH: [CallbackQueryHandler(on_cb)],
+            S.DAY: [CallbackQueryHandler(on_cb)],
+            S.PDF: [CallbackQueryHandler(on_cb)],
+
+            # текстові введення
+            S.AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_amount)],
+            S.COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_comment)],
         },
-        fallbacks=[],
+        fallbacks=[CommandHandler("cancel", cmd_cancel)],
         allow_reentry=True,
     )
+
+    # глобальний “ловець” текстів поза сценарієм
     app.add_handler(conv)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_unexpected_text))
     return app
+
 
 def main():
     app = build_app()
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
