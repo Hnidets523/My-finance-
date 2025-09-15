@@ -37,11 +37,22 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не знайдено у змінних середовища (Railway → Variables).")
 
-HF_API_KEY = os.getenv("HF_API_KEY")  # може бути None — тоді покажемо підказку у боті
-HF_MODEL = os.getenv("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
-
-# HuggingFace Inference endpoint (models API, без оплати)
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL", "tiiuae/falcon-7b-instruct")
 HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+
+def hf_call(prompt):
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    payload = {"inputs": prompt}
+
+    response = requests.post(HF_URL, headers=headers, json=payload)
+    if response.status_code == 200:
+        result = response.json()
+        if isinstance(result, list) and "generated_text" in result[0]:
+            return result[0]["generated_text"]
+        return str(result)
+    else:
+        return f"Помилка Hugging Face API: {response.status_code}"
 
 DB_PATH = "finance.db"
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
