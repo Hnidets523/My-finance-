@@ -8,8 +8,8 @@ body {
 
 /* Контейнер */
 .wrap {
-  width: 90%;
-  max-width: 1200px;
+  width: 95%;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -39,12 +39,12 @@ h1, h2 {
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 14px;
   justify-items: center;
   margin-top: 20px;
 }
 
-/* Центрування нижніх 2 */
+/* Для нижніх 2 карток */
 .cards .card:nth-child(4),
 .cards .card:nth-child(5) {
   grid-column: span 1;
@@ -52,18 +52,13 @@ h1, h2 {
 }
 
 /* Адаптивність */
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .cards {
     grid-template-columns: repeat(2, 1fr);
   }
-  .cards .card:nth-child(4),
-  .cards .card:nth-child(5) {
-    grid-column: span 2;
-    justify-self: center;
-  }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 480px) {
   .cards {
     grid-template-columns: 1fr;
   }
@@ -80,8 +75,8 @@ h1, h2 {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 250px; /* 📌 Зменшив щоб всі влазили */
-  min-height: 280px; /* однакова висота */
+  max-width: 200px;   /* 📌 зробив ще менше */
+  min-height: 240px;  /* 📌 всі однакові */
 }
 
 .card:hover {
@@ -90,26 +85,26 @@ h1, h2 {
 
 .card .media {
   width: 100%;
-  height: 120px; /* нижче ніж раніше */
+  height: 100px; /* 📌 зменшив */
   background-size: cover;
   background-position: center;
 }
 
 .card .content {
-  padding: 12px;
+  padding: 10px;
   text-align: center;
   flex: 1;
 }
 
 .card h3 {
-  font-size: 16px;
+  font-size: 14px;
   margin-bottom: 6px;
 }
 
 .card p {
-  font-size: 13px;
+  font-size: 12px;
   color: #333;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   line-height: 1.4;
 }
 
@@ -119,10 +114,11 @@ h1, h2 {
   background: #00a86b;
   color: #fff;
   font-weight: bold;
-  padding: 8px 18px;
+  padding: 6px 14px;
   border-radius: 6px;
   text-decoration: none;
   transition: background 0.3s ease;
+  font-size: 13px;
 }
 
 .card a:hover {
