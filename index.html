@@ -48,14 +48,14 @@
     .home .cards{
       display: grid;
       grid-template-columns: repeat(3, 1fr); /* завжди 3 в ряд */
-      gap: 10px;
-      justify-items: center; /* центрує останній ряд */
+      gap: 14px 10px; /* 🔥 відступи між рядками і колонками */
+      justify-content: center; /* центрує останній ряд */
     }
 
     /* КАРТКА */
     .home .card{
       width: 100%;
-      max-width: 220px; /* 🔥 зменшено */
+      max-width: 180px; /* 🔥 ще менше */
       background: var(--card-bg);
       color: var(--text-dark);
       border-radius: var(--radius-lg);
@@ -67,7 +67,7 @@
 
     .home .card .media{
       width: 100%;
-      height: 80px; /* 🔥 менше фото */
+      height: 70px; /* 🔥 нижче фото */
       background-size: cover;
       background-position: center;
     }
@@ -78,22 +78,22 @@
     }
     .home .card h3{
       margin: 0 0 4px;
-      font-size: 14px;
+      font-size: 13px; /* 🔥 менший текст */
       font-weight: 700;
     }
     .home .card p{
       margin: 0 0 8px;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
       line-height: 1.3;
     }
 
     .home .btn{
       display: inline-block;
-      padding: 6px 14px;
+      padding: 5px 12px;
       background: var(--btn);
       color: #fff;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       border-radius: 999px;
       text-decoration: none;
@@ -118,7 +118,7 @@
         <div class="media" style="background-image:url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Фінансова грамотність</h3>
-          <p>Розберіться, як працюють гроші, щоб жити впевнено та вільно.</p>
+          <p>Розберіться, як працюють гроші.</p>
           <a class="btn" href="article1.html">Читати</a>
         </div>
       </article>
@@ -127,8 +127,8 @@
       <article class="card">
         <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
-          <h3>Як планувати бюджет ефективно</h3>
-          <p>Навчіться правильно розподіляти витрати та створити фінансову дисципліну.</p>
+          <h3>Як планувати бюджет</h3>
+          <p>Навчіться правильно витрачати.</p>
           <a class="btn" href="article2.html">Читати</a>
         </div>
       </article>
@@ -137,8 +137,8 @@
       <article class="card">
         <div class="media" style="background-image:url('https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
-          <h3>Інвестування для початківців</h3>
-          <p>Почніть інвестувати без великих ризиків і з розумінням інструментів.</p>
+          <h3>Інвестування</h3>
+          <p>Почніть без великих ризиків.</p>
           <a class="btn" href="article3.html">Читати</a>
         </div>
       </article>
@@ -148,7 +148,7 @@
         <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Фінансова подушка</h3>
-          <p>Стратегія фінансового захисту для будь-кого.</p>
+          <p>Захист для будь-кого.</p>
           <a class="btn" href="article4.html">Читати</a>
         </div>
       </article>
@@ -157,8 +157,8 @@
       <article class="card">
         <div class="media" style="background-image:url('https://raw.githubusercontent.com/Hnidets523/My-finance-/refs/heads/main/images/7FE9FEDC-8BC7-4E54-925F-D7FFCAA05274.png');"></div>
         <div class="content">
-          <h3>Топ поради для економії грошей</h3>
-          <p>Лайфхаки, як економити і не втрачати якість життя.</p>
+          <h3>Економія грошей</h3>
+          <p>Лайфхаки без втрати якості.</p>
           <a class="btn" href="article5.html">Читати</a>
         </div>
       </article>
