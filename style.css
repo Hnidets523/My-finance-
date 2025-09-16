@@ -1,7 +1,29 @@
+/* === БАЗА === */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0d1b1e; /* темно-зелений */
+  color: #f5f5f5;
+}
+
+/* Контейнер */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Заголовки */
+h1, h2 {
+  margin: 10px 0;
+  text-align: center;
+  color: #fff;
+}
+
 /* === ГОЛОВНА: КАРТКИ === */
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* на десктопі 3 колонки */
   gap: 30px;
   margin-top: 20px;
   justify-items: center;
@@ -19,7 +41,7 @@
   flex-direction: column;
   justify-content: space-between;
   width: 100%;
-  max-width: 320px; /* однакова ширина */
+  max-width: 320px;
 }
 
 .card:hover {
@@ -67,19 +89,62 @@
   background: #007f50;
 }
 
-/* === РОЗТАШУВАННЯ 3 + 2 (тільки на великих екранах) === */
-@media (min-width: 900px) {
-  .cards .card:nth-child(4) {
-    grid-column: 2; /* ставимо в центр */
-  }
-  .cards .card:nth-child(5) {
-    grid-column: 3; /* праворуч */
-  }
-}
+/* === АДАПТИВНЕ РОЗТАШУВАННЯ === */
 
-/* на мобілках і планшетах → звичайна сітка по 1 */
+/* На телефонах (до 899px) — по 1 картці */
 @media (max-width: 899px) {
   .cards {
     grid-template-columns: 1fr;
   }
+}
+
+/* На великих екранах (від 900px) — 3+2 */
+@media (min-width: 900px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  /* 4-та картка стає в центр */
+  .cards .card:nth-child(4) {
+    grid-column: 2;
+  }
+  /* 5-та картка праворуч */
+  .cards .card:nth-child(5) {
+    grid-column: 3;
+  }
+}
+
+/* === СТАТТІ === */
+article img {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+article {
+  font-size: 18px;
+  line-height: 1.8;
+  background: #17323a;
+  padding: 20px;
+  border-radius: 12px;
+  color: #f5f5f5;
+}
+
+/* Кнопка На головну */
+nav a {
+  display: inline-block;
+  margin: 10px auto;
+  padding: 10px 20px;
+  background: #00a86b;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.3s ease;
+}
+
+nav a:hover {
+  background: #007f50;
 }
