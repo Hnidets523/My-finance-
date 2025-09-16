@@ -5,95 +5,164 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Фінансовий блог</title>
   <link rel="stylesheet" href="style.css">
-
   <style>
-    :root{
-      --bg-dark: #0e1f1d;
-      --bg-hero: #183836;
-      --card-bg: #ffffff;
-      --text-dark: #101414;
-      --text-muted: #5b6664;
-      --btn: #10b981;
-      --btn-hover: #0e9f6e;
-      --radius-lg: 12px;
-      --shadow: 0 3px 8px rgba(0,0,0,.15);
-    }
-
-    body.home {
+    body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: var(--bg-dark);
+      font-family: Arial, sans-serif;
+      background: #0d1b1e;
       color: #fff;
     }
 
-    /* HERO */
-    .home .hero{
-      padding: 18px 12px 6px;
-      background: linear-gradient(180deg, var(--bg-hero), transparent);
+    header {
       text-align: center;
-    }
-    .home .hero h1{
-      margin: 0 0 6px;
-      font-size: clamp(20px, 6vw, 28px);
-      font-weight: 800;
-    }
-    .home .hero p{
-      margin: 0 auto 6px;
-      max-width: 700px;
-      color: #d7e3e1;
-      font-size: clamp(12px, 2.5vw, 14px);
+      padding: 20px 10px;
     }
 
-    /* GRID */
-    .home .wrap{
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 8px 10px 20px;
+    header h1 {
+      margin: 0;
+      font-size: 26px;
     }
 
-    .home .cards{
+    header p {
+      margin: 5px 0 0;
+      font-size: 14px;
+      color: #cfcfcf;
+    }
+
+    .cards {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      justify-items: center;
+      gap: 12px;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px 10px;
     }
 
-    /* CARD */
-    .home .card{
-      display: flex;
-      flex-direction: column;
-      background: var(--card-bg);
-      color: var(--text-dark);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
+    .card {
+      background: #fff;
+      color: #000;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       overflow: hidden;
-      border: 1px solid #ddd;
-      width: 100%;
-      max-width: 120px;   /* ще менші */
-      min-height: 160px;
-      transition: transform .18s ease, box-shadow .18s ease;
+      text-align: center;
+      transition: transform 0.2s ease;
     }
-    .home .card:hover{ transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.22); }
 
-    .home .card .media{
+    .card:hover {
+      transform: translateY(-4px);
+    }
+
+    .card .media {
       width: 100%;
-      height: 60px;  /* зменшене фото */
+      height: 100px;
       background-size: cover;
       background-position: center;
     }
 
-    .home .card .content{
-      padding: 6px 8px 10px;
-      text-align: center;
-      display: grid;
-      gap: 3px;
+    .card .content {
+      padding: 10px;
     }
-    .home .card h3{
-      margin: 0;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.2;
+
+    .card h3 {
+      margin: 8px 0;
+      font-size: 15px;
     }
-    .home .card p{
-      margin: 0 auto;
-      color:
+
+    .card p {
+      font-size: 13px;
+      color: #555;
+      margin: 0 0 10px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 6px 14px;
+      background: #00a86b;
+      color: #fff;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .btn:hover {
+      background: #007f50;
+    }
+
+    /* --- Адаптив --- */
+    @media (max-width: 768px) {
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 500px) {
+      .cards {
+        grid-template-columns: repeat(1, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Фінансовий блог</h1>
+    <p>Поради про фінанси, інвестиції, економію та стабільність</p>
+  </header>
+
+  <main>
+    <section class="cards">
+
+      <!-- 1 -->
+      <article class="card">
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="content">
+          <h3>Фінансова грамотність</h3>
+          <p>Розберіться, як працюють гроші.</p>
+          <a class="btn" href="article1.html">Читати</a>
+        </div>
+      </article>
+
+      <!-- 2 -->
+      <article class="card">
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="content">
+          <h3>Як планувати бюджет</h3>
+          <p>Навчіться правильно витрачати.</p>
+          <a class="btn" href="article2.html">Читати</a>
+        </div>
+      </article>
+
+      <!-- 3 -->
+      <article class="card">
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="content">
+          <h3>Інвестування</h3>
+          <p>Почніть без великих ризиків.</p>
+          <a class="btn" href="article3.html">Читати</a>
+        </div>
+      </article>
+
+      <!-- 4 -->
+      <article class="card">
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="content">
+          <h3>Фінансова подушка</h3>
+          <p>Захист для будь-кого.</p>
+          <a class="btn" href="article4.html">Читати</a>
+        </div>
+      </article>
+
+      <!-- 5 -->
+      <article class="card">
+        <div class="media" style="background-image:url('https://raw.githubusercontent.com/Hnidets523/My-finance-/refs/heads/main/images/7FE9FEDC-8BC7-4E54-925F-D7FFCAA05274.png');"></div>
+        <div class="content">
+          <h3>Економія грошей</h3>
+          <p>Лайфхаки без втрати якості.</p>
+          <a class="btn" href="article5.html">Читати</a>
+        </div>
+      </article>
+
+    </section>
+  </main>
+</body>
+</html>
