@@ -10,12 +10,12 @@ body {
 .wrap {
   width: 95%;
   margin: 0 auto;
-  padding: 15px;
+  padding: 12px;
 }
 
 /* Заголовки */
 h1, h2 {
-  margin: 10px 0;
+  margin: 8px 0;
   text-align: center;
   color: #fff;
 }
@@ -23,14 +23,14 @@ h1, h2 {
 /* === HERO === */
 .hero {
   text-align: center;
-  padding: 20px;
+  padding: 12px;
 }
 .hero h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
 }
 .hero p {
-  font-size: 14px;
+  font-size: 12px;
   color: #d7e3e1;
 }
 
@@ -38,62 +38,62 @@ h1, h2 {
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr); /* 3 в ряд */
-  gap: 10px;
+  gap: 8px;
   justify-items: center;
-  margin-top: 15px;
+  margin-top: 12px;
 }
 
-/* Нижні 2 карточки */
+/* Нижні 2 картки */
 .cards .card:nth-child(4),
 .cards .card:nth-child(5) {
   grid-column: span 1;
 }
 .cards .card:nth-child(4) {
-  grid-column-start: 2; /* ставимо зсунуто по центру */
+  grid-column-start: 2; /* центруємо */
 }
 
 /* Карточка */
 .card {
   background: #fff;
   color: #000;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
   transition: transform 0.2s ease;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 160px; /* розмір під телефон */
-  height: 230px;    /* однакова висота */
+  max-width: 95px; /* картки ще вужчі */
+  height: 150px;   /* нижча висота */
 }
 
 .card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
 }
 
 .card .media {
   width: 100%;
-  height: 100px;  /* менше зображення */
+  height: 55px; /* менше фото */
   background-size: cover;
   background-position: center;
 }
 
 .card .content {
-  padding: 10px;
+  padding: 6px;
   text-align: center;
   flex-grow: 1;
 }
 
 .card h3 {
-  font-size: 13px;
-  margin: 5px 0;
+  font-size: 10px;
+  margin: 3px 0;
 }
 
 .card p {
-  font-size: 11px;
+  font-size: 8px;
   color: #333;
-  margin: 5px 0 10px;
-  line-height: 1.3;
+  margin: 3px 0 6px;
+  line-height: 1.2;
 }
 
 /* Кнопка Читати */
@@ -102,8 +102,8 @@ h1, h2 {
   background: #00a86b;
   color: #fff;
   font-weight: bold;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 9px;
   border-radius: 6px;
   text-decoration: none;
   transition: background 0.3s ease;
