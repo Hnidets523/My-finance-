@@ -44,45 +44,50 @@
     }
 
     /* GRID */
-    .home .wrap{max-width: 1000px; margin: 0 auto; padding: 10px 10px 30px;}
+    .home .wrap{
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px 10px 40px;
+    }
     .home .cards{
       display: grid;
-      grid-template-columns: repeat(3, 1fr); /* завжди 3 в ряд */
-      gap: 14px 10px; /* 🔥 відступи між рядками і колонками */
-      justify-content: center; /* центрує останній ряд */
+      grid-template-columns: repeat(3, 1fr); /* завжди 3 */
+      gap: 20px; /* 🔥 більше відступів */
+      justify-content: center;
     }
 
     /* КАРТКА */
     .home .card{
       width: 100%;
-      max-width: 180px; /* 🔥 ще менше */
+      max-width: 170px; /* 🔥 всі однакового розміру */
       background: var(--card-bg);
       color: var(--text-dark);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow);
       overflow: hidden;
       transition: transform .18s ease;
+      margin: 0 auto; /* 🔥 щоб всі рівнялись по центру */
     }
     .home .card:hover{ transform: translateY(-2px); }
 
     .home .card .media{
       width: 100%;
-      height: 70px; /* 🔥 нижче фото */
+      height: 80px;
       background-size: cover;
       background-position: center;
     }
 
     .home .card .content{
-      padding: 10px 8px 12px;
+      padding: 10px 8px 14px;
       text-align: center;
     }
     .home .card h3{
-      margin: 0 0 4px;
-      font-size: 13px; /* 🔥 менший текст */
+      margin: 0 0 6px;
+      font-size: 13px;
       font-weight: 700;
     }
     .home .card p{
-      margin: 0 0 8px;
+      margin: 0 0 10px;
       font-size: 11px;
       color: var(--text-muted);
       line-height: 1.3;
@@ -90,7 +95,7 @@
 
     .home .btn{
       display: inline-block;
-      padding: 5px 12px;
+      padding: 6px 14px;
       background: var(--btn);
       color: #fff;
       font-size: 11px;
