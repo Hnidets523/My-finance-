@@ -1,168 +1,59 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Фінансовий блог</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0d1b1e;
-      color: #fff;
-    }
-
-    header {
-      text-align: center;
-      padding: 20px 10px;
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 26px;
-    }
-
-    header p {
-      margin: 5px 0 0;
-      font-size: 14px;
-      color: #cfcfcf;
-    }
-
-    /* Сітка для карток */
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      justify-content: center;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px 10px;
-    }
-
-    .card {
-      background: #fff;
-      color: #000;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      overflow: hidden;
-      text-align: center;
-      transition: transform 0.2s ease;
-      width: 100%;
-      height: 200px; /* однакова висота */
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .card:hover {
-      transform: translateY(-4px);
-    }
-
-    .card .media {
-      width: 100%;
-      height: 80px; /* менші картинки */
-      background-size: cover;
-      background-position: center;
-    }
-
-    .card .content {
-      padding: 8px;
-    }
-
-    .card h3 {
-      margin: 6px 0;
-      font-size: 14px;
-    }
-
-    .card p {
-      font-size: 12px;
-      color: #555;
-      margin: 0 0 6px;
-    }
-
-    .btn {
-      display: inline-block;
-      padding: 5px 12px;
-      background: #00a86b;
-      color: #fff;
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 12px;
-      font-weight: bold;
-    }
-
-    .btn:hover {
-      background: #007f50;
-    }
-
-    /* --- нижні 2 карточки по центру --- */
-    .cards > .card:nth-last-child(-n+2) {
-      grid-column: span 1;
-    }
-    .cards {
-      grid-auto-rows: 1fr;
-    }
-    .cards:has(.card:nth-last-child(2)) {
-      grid-template-rows: auto auto;
-    }
-    @media (max-width: 768px) {
-      .cards {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    @media (max-width: 500px) {
-      .cards {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
+  <!-- HERO -->
+  <header class="hero">
     <h1>Фінансовий блог</h1>
     <p>Поради про фінанси, інвестиції, економію та стабільність</p>
   </header>
 
-  <main>
+  <!-- КАРТКИ -->
+  <main class="wrap">
     <section class="cards">
 
       <!-- 1 -->
       <article class="card">
-        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Фінансова грамотність</h3>
-          <p>Розберіться, як працюють гроші.</p>
-          <a class="btn" href="article1.html">Читати</a>
+          <p>Розберіться, як працюють гроші, щоб жити впевнено.</p>
+          <a href="article1.html">Читати</a>
         </div>
       </article>
 
       <!-- 2 -->
       <article class="card">
-        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Як планувати бюджет</h3>
           <p>Навчіться правильно витрачати.</p>
-          <a class="btn" href="article2.html">Читати</a>
+          <a href="article2.html">Читати</a>
         </div>
       </article>
 
       <!-- 3 -->
       <article class="card">
-        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Інвестування</h3>
           <p>Почніть без великих ризиків.</p>
-          <a class="btn" href="article3.html">Читати</a>
+          <a href="article3.html">Читати</a>
         </div>
       </article>
 
       <!-- 4 -->
       <article class="card">
-        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=600&q=80');"></div>
+        <div class="media" style="background-image:url('https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=900&q=80');"></div>
         <div class="content">
           <h3>Фінансова подушка</h3>
           <p>Захист для будь-кого.</p>
-          <a class="btn" href="article4.html">Читати</a>
+          <a href="article4.html">Читати</a>
         </div>
       </article>
 
@@ -172,7 +63,7 @@
         <div class="content">
           <h3>Економія грошей</h3>
           <p>Лайфхаки без втрати якості.</p>
-          <a class="btn" href="article5.html">Читати</a>
+          <a href="article5.html">Читати</a>
         </div>
       </article>
 
