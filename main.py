@@ -3,13 +3,15 @@
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ФІНАНСОВИЙ БОТ + ОСОБИСТИЙ КАБІНЕТ + СТАТИСТИКА (ДЕНЬ/МІСЯЦЬ) + PDF/ДІАГРАМИ
-# КУРСИ (НБУ + COINGECKO), ФІНАНСОВА ВІКТОРИНА, ТА 📰 ФІНАНСОВИЙ БЛОГ (КНОПКА)
+# КУРСИ (НБУ + COINGECKO), ФІНАНСОВА ВІКТОРИНА, ТА 📚 ФІНАНСОВИЙ БЛОГ (посилання)
 # ─────────────────────────────────────────────────────────────────────────────
 # ВИМОГИ (requirements.txt):
 # python-telegram-bot[job-queue]==20.3
 # reportlab
 # matplotlib
 # requests
+# ─────────────────────────────────────────────────────────────────────────────
+# ПРИМІТКА: Ми повністю прибрали torch/transformers і логіку AI.
 # ─────────────────────────────────────────────────────────────────────────────
 
 import os
@@ -48,9 +50,6 @@ if not BOT_TOKEN:
 
 DB_PATH = "finance.db"
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
-
-# URL головної сторінки з усіма статтями твого сайту
-BLOG_URL = os.getenv("BLOG_URL", "https://hnidets523.github.io")
 
 # ===================== DB =====================
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -223,7 +222,7 @@ QUIZ_QUESTIONS_BASE = [
     STAT_MONTH_SELECT,
     STAT_DAY_SELECT,
     PROFILE_EDIT_NAME,
-    QUIZ_ACTIVE,       # вікторина
+    QUIZ_ACTIVE        # вікторина
 ) = range(9)
 
 # ===================== RATES (NBU + CoinGecko) =====================
@@ -329,7 +328,7 @@ def build_stats_text(rows, title):
             sums[t] = 0.0
         sums[t] += a
         lines.append(f"• {t} | {CATEGORY_EMOJI.get(c, '')} {c}/{s or '-'} — {a:.2f} {curx} ({com or '-'})")
-        total = "\n".join([f"{k}: {v:.2f}" for k, v in sums.items()])
+    total = "\n".join([f"{k}: {v:.2f}" for k, v in sums.items()])
     tip = random.choice(TIPS)
     return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{total}\n\n💡 {tip}"
 
@@ -414,7 +413,7 @@ def main_menu_ikb():
         [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
         [("📈 Інвестиції", "type:inv"), ("📊 Статистика", "stats:open")],
         [("🎮 Гра", "quiz:start"), ("👤 Мій профіль", "profile:open")],
-        [("📰 Фінансовий блог", "blog:open")]
+        [("📚 Фінансовий блог", "blog:open")]
     ])
 
 def categories_ikb(tname):
@@ -503,6 +502,12 @@ def quiz_answer_ikb(q_idx: int):
         [("🏠 Головне меню", "main:open")]
     ])
 
+def blog_ikb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 Відкрити блог", url="https://hnidets523.github.io")],
+        [InlineKeyboardButton("🏠 Головне меню", callback_data="main:open")]
+    ])
+
 # ===================== INTRO =====================
 INTRO_TEXT = (
     "━━━━━━━━━━━━━━━━━━━━\n"
@@ -514,27 +519,9 @@ INTRO_TEXT = (
     "• Будувати 🥧 діаграми витрат та генерувати 📄 PDF-звіти\n"
     "• Зберігати історію транзакцій і профіль (ім’я, валюта)\n"
     "• Показувати реальні курси валют/крипти (НБУ + CoinGecko)\n"
-    "• 📰 «Фінансовий блог»: добірка статей про бюджет, інвестиції та подушку безпеки\n\n"
+    "• 📚 Фінансовий блог з корисними статтями — дивись у меню!\n\n"
     "Починай із додавання запису або відкрий «📊 Статистика». Готовий? 🙂\n"
 )
-
-def blog_intro_text() -> str:
-    return (
-        "📰 *ФІНАНСОВИЙ БЛОГ*\n"
-        "Розділ з короткими практичними статтями:\n"
-        "• Фінансова грамотність\n"
-        "• Планування бюджету\n"
-        "• Інвестування для початківців\n"
-        "• Подушка безпеки\n"
-        "• Поради з економії\n\n"
-        "Натисни кнопку нижче, щоб перейти на головну сторінку блогу з усіма статтями."
-    )
-
-def blog_open_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 Відкрити фінансовий блог", url=BLOG_URL)],
-        [InlineKeyboardButton("🏠 Головне меню", callback_data="main:open")]
-    ])
 
 # ===================== MAIN MENU SENDER =====================
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str | None = None):
@@ -572,11 +559,6 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ГОЛОВНЕ МЕНЮ
     if data == "main:open":
         await send_main_menu(update, context, "🏠 Повернувся в головне меню")
-        return MAIN
-
-    # БЛОГ
-    if data == "blog:open":
-        await q.edit_message_text(blog_intro_text(), parse_mode="Markdown", reply_markup=blog_open_kb())
         return MAIN
 
     # ОНБОРДИНГ: валюта
@@ -659,7 +641,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STAT_YEAR_SELECT
 
     if data.startswith("stats:year:"):
-        y = int(data.split(":", 2)[2])
+        y = int(data.split(":")[2])
         context.user_data["year"] = y
         await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
         return STAT_MONTH_SELECT
@@ -669,7 +651,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STAT_MONTH_SELECT
 
     if data.startswith("stats:month:"):
-        m = int(data.split(":", 2)[2])
+        m = int(data.split(":")[2])
         context.user_data["month"] = m
         if context.user_data.get("stat_mode") == "day":
             y = context.user_data["year"]
@@ -693,7 +675,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return STAT_MONTH_SELECT
 
     if data.startswith("stats:day:"):
-        d = int(data.split(":", 2)[2])
+        d = int(data.split(":")[2])
         y, m = context.user_data["year"], context.user_data["month"]
         rows, _ = fetch_day(uid, y, m, d)
         title = f"📅 {d} {MONTHS[m]} {y}"
@@ -717,7 +699,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "stats:pie":
         payload = context.user_data.get("last_report")
         if not payload:
-            await q.answer("Немає звіту для діаграми.", show_alert=True)
+            await q.answer("Немає даних по витратах для діаграми.", show_alert=True)
             return MAIN
         _, rows, title = payload
         img = "pie.png"
@@ -767,8 +749,62 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_ikb())
         return MAIN
 
-    if data == "unknown":
-        await q.answer("Невідома дія.", show_alert=True)
+    # ВІКТОРИНА
+    if data == "quiz:start":
+        explain = (
+            "🎮 *Фінансова грамотність — міні-тест*\n"
+            "──────────────────────\n"
+            "• 20 коротких запитань (A/B/C/D)\n"
+            "• В кінці — бали + розбір помилок\n\n"
+            "Готовий? Зараз з’явиться перше питання 👇"
+        )
+        q_indexes = list(range(len(QUIZ_QUESTIONS_BASE)))
+        random.shuffle(q_indexes)
+        q_indexes = q_indexes[:20]
+        context.user_data["quiz_idx_list"] = q_indexes
+        context.user_data["quiz_pos"] = 0
+        context.user_data["quiz_score"] = 0
+        context.user_data["quiz_mistakes"] = []
+        await q.edit_message_text(explain, parse_mode="Markdown")
+        return await quiz_ask_next(update, context)
+
+    if data.startswith("quiz:ans:"):
+        parts = data.split(":")
+        qidx = int(parts[2])   # позиція (0..19)
+        choice = int(parts[3]) # 0..3
+
+        pos = context.user_data.get("quiz_pos", 0)
+        if qidx != pos:
+            await q.answer("Відповідь уже прийнята, рухаємось далі…")
+            return QUIZ_ACTIVE
+
+        idx_list = context.user_data.get("quiz_idx_list", [])
+        base_idx = idx_list[pos]
+        item = QUIZ_QUESTIONS_BASE[base_idx]
+
+        correct = item["ans"]
+        letters = ["A", "B", "C", "D"]
+        if choice == correct:
+            context.user_data["quiz_score"] = context.user_data.get("quiz_score", 0) + 1
+            await q.answer("✅ Правильно!")
+        else:
+            context.user_data["quiz_mistakes"].append(
+                (item["q"], letters[choice], letters[correct], item["opts"][correct])
+            )
+            await q.answer("❌ Неправильно")
+
+        context.user_data["quiz_pos"] = pos + 1
+        return await quiz_ask_next(update, context)
+
+    # 📚 ФІНАНСОВИЙ БЛОГ (нова кнопка)
+    if data == "blog:open":
+        blog_text = (
+            "📚 *Фінансовий блог*\n"
+            "— зібрання наших статей про бюджет, інвестиції, подушку безпеки та економію.\n\n"
+            "🔎 Тут ти знайдеш короткі, практичні матеріали з прикладами та порадами.\n"
+            "Натисни кнопку нижче, щоб перейти на сайт зі всіма статтями."
+        )
+        await q.edit_message_text(blog_text, parse_mode="Markdown", reply_markup=blog_ikb())
         return MAIN
 
     await q.answer("Невідома дія.", show_alert=True)
@@ -859,11 +895,9 @@ async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
     return MAIN
 
-# ===================== COMMANDS SHORTCUTS =====================
-async def cmd_blog(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(blog_intro_text(), parse_mode="Markdown", reply_markup=blog_open_kb())
-
+# ===================== START/ONBOARD TEXT =====================
 async def cmd_start_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # якщо користувач пише /start у середині діалогу
     return await cmd_start(update, context)
 
 # ===================== APP =====================
@@ -900,8 +934,7 @@ def build_app():
     )
 
     app.add_handler(conv)
-    # Швидкі команди
-    app.add_handler(CommandHandler("blog", cmd_blog))
+    # На випадок якщо користувач знову надішле /start під час інших станів
     app.add_handler(CommandHandler("start", cmd_start_text))
     return app
 
