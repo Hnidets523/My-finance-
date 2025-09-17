@@ -1,10 +1,46 @@
-/* --- КАРТКИ --- */
+/* === БАЗА === */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0d1b1e;
+  color: #f5f5f5;
+}
+
+/* Контейнер */
+.wrap {
+  width: 95%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 0 40px;
+}
+
+/* Заголовки */
+h1, h2 {
+  margin: 10px 0;
+  text-align: center;
+  color: #fff;
+}
+
+.hero {
+  text-align: center;
+  padding: 15px 10px;
+}
+.hero h1 {
+  font-size: 26px;
+  font-weight: 800;
+}
+.hero p {
+  font-size: 15px;
+  color: #d7e3e1;
+}
+
+/* === КАРТКИ === */
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 15px;
   justify-items: center;
-  margin-top: 20px;
+  margin-top: 15px;
 }
 
 .card {
@@ -12,74 +48,65 @@
   color: #000;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: transform 0.3s ease;
   display: flex;
   flex-direction: column;
-  transition: transform 0.3s ease;
   width: 100%;
-  max-width: 160px; /* верхні картки */
+  max-width: 200px; /* обмеження для телефона */
 }
 
 .card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
 }
 
 /* Картинка */
-.card .media {
+.media {
   width: 100%;
-  height: 110px;               /* стабільна висота */
-  background-size: cover;      /* тепер картинка заповнює блок */
-  background-position: center; /* по центру */
-  background-repeat: no-repeat;
+  height: 120px;
+  background-size: cover;
+  background-position: center;
 }
 
-/* Текст */
+/* Контент */
 .card .content {
-  padding: 10px;
+  padding: 12px;
   text-align: center;
 }
+
 .card h3 {
   font-size: 14px;
   margin-bottom: 6px;
 }
+
 .card p {
   font-size: 12px;
-  margin-bottom: 10px;
   color: #333;
+  margin-bottom: 12px;
+  line-height: 1.4;
 }
 
-/* Нижні 2 картки */
-.card.big {
-  max-width: 200px; /* більші ніж верхні */
-  grid-column: span 2;
-  justify-self: center;
-  margin-top: 18px;  /* трохи нижче */
-}
-
+/* Кнопка */
 .card a {
   display: inline-block;
   background: #00a86b;
   color: #fff;
   font-weight: bold;
-  padding: 8px 18px;
-  border-radius: 6px;
+  padding: 7px 16px;
+  border-radius: 8px;
   text-decoration: none;
   font-size: 13px;
+  transition: background 0.3s ease;
 }
+
 .card a:hover {
   background: #007f50;
 }
 
-/* Адаптив для телефону */
-@media (max-width: 768px) {
-  .cards {
-    grid-template-columns: 1fr 1fr;
-  }
-  .card {
-    max-width: 140px;
-  }
-  .card.big {
-    grid-column: span 2;
-    max-width: 220px;
-  }
+/* === НИЖНІ 2 КАРТКИ === */
+.cards .card:nth-child(4),
+.cards .card:nth-child(5) {
+  max-width: 230px; /* зробив трохи більші */
+  grid-column: span 1;
+  justify-self: center;
 }
