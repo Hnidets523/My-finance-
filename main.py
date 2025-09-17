@@ -11,7 +11,7 @@
 # matplotlib
 # requests
 # ─────────────────────────────────────────────────────────────────────────────
-# ПРИМІТКА: Ми повністю прибрали torch/transformers і логіку AI.
+# ПРИМІТКА: повністю прибрано AI і залежності torch/transformers.
 # ─────────────────────────────────────────────────────────────────────────────
 
 import os
@@ -50,6 +50,9 @@ if not BOT_TOKEN:
 
 DB_PATH = "finance.db"
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
+# URL фінансового блогу (головна сторінка зі всіма статтями)
+BLOG_URL = "https://hnidets523.github.io/My-finance-/index.html"
 
 # ===================== DB =====================
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -504,7 +507,7 @@ def quiz_answer_ikb(q_idx: int):
 
 def blog_ikb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 Відкрити блог", url="https://hnidets523.github.io")],
+        [InlineKeyboardButton("🌐 Відкрити блог", url=BLOG_URL)],
         [InlineKeyboardButton("🏠 Головне меню", callback_data="main:open")]
     ])
 
@@ -800,9 +803,9 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "blog:open":
         blog_text = (
             "📚 *Фінансовий блог*\n"
-            "— зібрання наших статей про бюджет, інвестиції, подушку безпеки та економію.\n\n"
-            "🔎 Тут ти знайдеш короткі, практичні матеріали з прикладами та порадами.\n"
-            "Натисни кнопку нижче, щоб перейти на сайт зі всіма статтями."
+            "— наша добірка статей про бюджет, інвестиції, подушку безпеки та економію.\n\n"
+            "🔎 Всередині: короткі практичні матеріали з прикладами, чек-листами та порадами.\n"
+            "Натисни кнопку нижче, щоб перейти на сайт зі *всіма статтями*."
         )
         await q.edit_message_text(blog_text, parse_mode="Markdown", reply_markup=blog_ikb())
         return MAIN
@@ -897,13 +900,12 @@ async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT
 
 # ===================== START/ONBOARD TEXT =====================
 async def cmd_start_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # якщо користувач пише /start у середині діалогу
     return await cmd_start(update, context)
 
 # ===================== APP =====================
 def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
-    # Auto-оновлення курсів щохвилини
+    # Авто-оновлення курсів щохвилини
     app.job_queue.run_repeating(refresh_rates_job, interval=60, first=0)
 
     conv = ConversationHandler(
@@ -934,7 +936,6 @@ def build_app():
     )
 
     app.add_handler(conv)
-    # На випадок якщо користувач знову надішле /start під час інших станів
     app.add_handler(CommandHandler("start", cmd_start_text))
     return app
 
