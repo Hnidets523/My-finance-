@@ -1,102 +1,123 @@
-/* === БАЗА === */
-body {
+/* ===== БАЗА ===== */
+:root{
+  /* Трохи світліший темно-зелений фон */
+  --bg-base: #0f2f2b;
+  --bg-1: #1b4c46;
+  --bg-2: #134640;
+
+  /* Розміри карток: фіксуємо компактну довжину (як домовлялись) */
+  --card-max-w: 260px;
+  --media-h: 120px;
+  --radius-lg: 16px;
+
+  --text-dark: #0c1211;
+  --text-muted: #5d6b68;
+
+  --btn: #12b06f;
+  --btn-hover: #0e9a61;
+
+  --shadow: 0 10px 26px rgba(0,0,0,.28);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body{
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: linear-gradient(180deg, #0b2e2a, #134e46); /* темно-зелений фон з відтінком */
-  color: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #f7f9f8;
+
+  /* Світліший багатошаровий фон */
+  background:
+    radial-gradient(700px 420px at 12% 0%, rgba(27,76,70,.45) 0%, rgba(27,76,70,0) 60%),
+    radial-gradient(700px 420px at 100% -10%, rgba(19,70,64,.35) 0%, rgba(19,70,64,0) 55%),
+    linear-gradient(180deg, var(--bg-2), var(--bg-base));
 }
 
-/* Контейнер */
-.wrap {
-  width: 90%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-/* Заголовки */
-h1, h2 {
-  margin: 10px 0;
+/* ===== HERO ===== */
+.hero{
   text-align: center;
-  color: #fff;
+  padding: 22px 14px 6px;
 }
-
-/* === HERO === */
-.hero {
-  text-align: center;
-  padding: 20px;
-}
-.hero h1 {
-  font-size: 28px;
+.hero h1{
+  margin: 0 0 6px;
+  font-size: clamp(26px, 7vw, 40px);
   font-weight: 800;
 }
-.hero p {
-  font-size: 16px;
-  color: #d7e3e1;
+.hero p{
+  margin: 0 auto;
+  color: #d6e6e4;
+  max-width: 720px;
+  font-size: clamp(14px, 3.8vw, 18px);
 }
 
-/* === КАРТКИ === */
-.cards {
+/* ===== КОНТЕЙНЕР ===== */
+.wrap{ max-width: 1100px; margin: 0 auto; padding: 6px 14px 40px; }
+
+/* ===== СІТКА КАРТОК ===== */
+.cards{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0,1fr)); /* під телефон */
   gap: 16px;
   justify-items: center;
-  margin-top: 20px;
+}
+@media (min-width: 900px){
+  .cards{ grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 
-.card {
+/* ===== КАРТКА ===== */
+.card{
+  width: 100%;
+  max-width: var(--card-max-w);
   background: #fff;
-  color: #000;
-  border-radius: 12px;
+  color: var(--text-dark);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  transition: transform 0.3s ease;
   display: flex;
   flex-direction: column;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.card:hover{ transform: translateY(-3px); box-shadow: 0 14px 32px rgba(0,0,0,.32); }
+
+.thumb{
+  display: block;
   width: 100%;
-  max-width: 200px; /* зменшено ширину */
-  height: 320px; /* зменшено висоту */
+  height: var(--media-h);
+  object-fit: cover;              /* акуратно заповнює блок */
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: #e9eeed;
 }
 
-.card:hover {
-  transform: translateY(-5px);
-}
-
-.card img {
-  width: 100%;
-  height: 120px; /* зменшена висота картинок */
-  object-fit: cover;
-}
-
-.card .content {
-  padding: 12px;
+.content{
+  padding: 14px 14px 16px;
   text-align: center;
-  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+.card h3{
+  margin: 2px 0 2px;
+  font-size: 17px;
+  font-weight: 800;
+}
+.card p{
+  margin: 0 auto 6px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  max-width: 95%;
 }
 
-.card h3 {
-  font-size: 16px;
-  margin-bottom: 6px;
-}
-
-.card p {
-  font-size: 13px;
-  color: #333;
-  margin-bottom: 12px;
-}
-
-/* Кнопка Читати */
-.card a {
+/* Кнопка */
+.btn{
   display: inline-block;
-  background: #00a86b;
+  margin: 6px auto 2px;
+  padding: 10px 18px;
+  background: var(--btn);
   color: #fff;
-  font-weight: bold;
-  padding: 8px 16px;
-  border-radius: 8px;
   text-decoration: none;
-  transition: background 0.3s ease;
+  font-weight: 800;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(18,176,111,.32);
+  transition: background .18s ease, transform .18s ease, box-shadow .18s ease;
 }
-
-.card a:hover {
-  background: #007f50;
-}
+.btn:hover{ background: var(--btn-hover); transform: translateY(-1px); box-shadow: 0 10px 22px rgba(18,176,111,.42); }
