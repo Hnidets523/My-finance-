@@ -1,11 +1,9 @@
 /* ===== БАЗА ===== */
 :root{
-  /* Трохи світліший темно-зелений фон */
   --bg-base: #0f2f2b;
   --bg-1: #1b4c46;
   --bg-2: #134640;
 
-  /* Розміри карток: фіксуємо компактну довжину (як домовлялись) */
   --card-max-w: 260px;
   --media-h: 120px;
   --radius-lg: 16px;
@@ -26,7 +24,6 @@ body{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   color: #f7f9f8;
 
-  /* Світліший багатошаровий фон */
   background:
     radial-gradient(700px 420px at 12% 0%, rgba(27,76,70,.45) 0%, rgba(27,76,70,0) 60%),
     radial-gradient(700px 420px at 100% -10%, rgba(19,70,64,.35) 0%, rgba(19,70,64,0) 55%),
@@ -36,18 +33,49 @@ body{
 /* ===== HERO ===== */
 .hero{
   text-align: center;
-  padding: 22px 14px 6px;
+  padding: 60px 20px 50px;
+  background: linear-gradient(135deg, #145a4a, #0f2f2b);
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
 }
 .hero h1{
-  margin: 0 0 6px;
-  font-size: clamp(26px, 7vw, 40px);
+  margin: 0 0 14px;
+  font-size: clamp(30px, 7vw, 46px);
   font-weight: 800;
+  color: #ffffff;
+  text-shadow: 2px 3px 8px rgba(0,0,0,.4);
 }
 .hero p{
-  margin: 0 auto;
-  color: #d6e6e4;
-  max-width: 720px;
-  font-size: clamp(14px, 3.8vw, 18px);
+  margin: 0 auto 25px;
+  color: #e0f5ef;
+  max-width: 700px;
+  font-size: clamp(15px, 3.8vw, 20px);
+  position: relative;
+  padding-bottom: 12px;
+}
+.hero p::after{
+  content: "";
+  display: block;
+  width: 70px;
+  height: 3px;
+  background: var(--btn);
+  margin: 10px auto 0;
+  border-radius: 2px;
+}
+.hero .hero-btn{
+  background: var(--btn);
+  color: #fff;
+  font-weight: 700;
+  padding: 12px 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(18,176,111,.35);
+  transition: background .2s, transform .2s, box-shadow .2s;
+}
+.hero .hero-btn:hover{
+  background: var(--btn-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(18,176,111,.45);
 }
 
 /* ===== КОНТЕЙНЕР ===== */
@@ -56,7 +84,7 @@ body{
 /* ===== СІТКА КАРТОК ===== */
 .cards{
   display: grid;
-  grid-template-columns: repeat(2, minmax(0,1fr)); /* під телефон */
+  grid-template-columns: repeat(2, minmax(0,1fr));
   gap: 16px;
   justify-items: center;
 }
@@ -83,7 +111,7 @@ body{
   display: block;
   width: 100%;
   height: var(--media-h);
-  object-fit: cover;              /* акуратно заповнює блок */
+  object-fit: cover;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: #e9eeed;
 }
