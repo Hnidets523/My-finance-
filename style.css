@@ -1,84 +1,93 @@
-/* БАЗА */
-:root{
-  --bg: #0d1b1e;
-  --text: #f5f5f5;
-  --card-bg: #fff;
-  --muted: #445357;
-  --btn: #16a34a;
-  --btn-hover: #12843d;
-  --radius: 14px;
-  --shadow: 0 8px 24px rgba(0,0,0,.25);
+/* === БАЗА === */
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  background: #0d1b1e;
+  color: #f5f5f5;
 }
 
-* { box-sizing: border-box; }
-
-body{
-  margin:0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-.wrap{ max-width:980px; margin:0 auto; padding:18px 14px 60px; }
-
-/* HERO */
-.hero{ text-align:center; margin-bottom:16px; }
-.hero h1{ margin:0 0 6px; font-size:28px; font-weight:800; }
-.hero p{ margin:0; color:#cfe1df; font-size:15px; }
-
-/* КАРТКИ: 3 зверху, 2 знизу по центру */
-.cards{
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center; /* центр нижнього ряду */
-  gap:14px;
+/* === HERO === */
+.hero {
+  text-align: center;
+  margin-bottom: 25px;
+}
+.hero h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 10px 0;
+}
+.hero p {
+  font-size: 15px;
+  color: #cdd6d4;
 }
 
-/* Одна картка — маленька, телефон-friendly */
-.card{
-  width:130px;                /* керує розміром (зменш/збільш тут) */
-  background:var(--card-bg);
-  color:#111;
-  border-radius:var(--radius);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
+/* === КАРТКИ === */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
 }
 
-/* Зображення: не обрізати */
-.card .media{
-  width:100%;
-  height:90px;                /* фіксована висота для однакових карток */
-  object-fit:contain;         /* показує всю картинку, без обрізання */
-  background:#fff;
-  display:block;
+.card {
+  background: #fff;
+  color: #000;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+.card:hover {
+  transform: translateY(-4px);
 }
 
-/* Вміст */
-.card .content{ padding:10px 10px 12px; text-align:center; }
-.card h3{ margin:6px 0 6px; font-size:14px; line-height:1.25; }
-.card p{ margin:0 0 10px; font-size:12px; color:#555; }
+/* Зображення */
+.card img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+
+/* Контент */
+.card .content {
+  padding: 14px;
+  text-align: center;
+}
+.card h3 {
+  font-size: 16px;
+  margin: 8px 0;
+}
+.card p {
+  font-size: 13px;
+  color: #444;
+  margin-bottom: 12px;
+}
 
 /* Кнопка */
-.card a{
-  display:inline-block;
-  padding:8px 14px;
-  background:var(--btn);
-  color:#fff; text-decoration:none; font-weight:700; border-radius:999px;
-  transition:.15s;
+.card a {
+  display: inline-block;
+  background: #00a86b;
+  color: #fff;
+  font-weight: bold;
+  padding: 8px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.3s ease;
 }
-.card a:hover{ background:var(--btn-hover); }
+.card a:hover {
+  background: #007f50;
+}
 
-/* Сторінки статей (залишив як було, якщо потрібно) */
-article{
-  font-size:18px; line-height:1.8; background:#17323a; padding:20px; border-radius:12px; color:#f5f5f5;
+/* === Мобільний вигляд === */
+@media (max-width: 600px) {
+  .cards {
+    grid-template-columns: 1fr; /* по 1 картці в ряд */
+  }
 }
-article img{
-  width:100%; max-height:300px; object-fit:cover; border-radius:10px; margin-bottom:20px;
-}
-nav a{
-  display:inline-block; margin:10px auto; padding:10px 20px; background:#00a86b; color:#fff; font-weight:700;
-  text-decoration:none; border-radius:8px; transition:.2s;
-}
-nav a:hover{ background:#007f50; }
