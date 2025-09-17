@@ -1,64 +1,99 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Фінансовий блог</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="wrap">
+  <main class="wrap">
     <header class="hero">
       <h1>Фінансовий блог</h1>
       <p>Поради про фінанси, інвестиції, економію та стабільність</p>
     </header>
 
     <section class="cards">
+      <!-- 1 -->
       <article class="card">
-        <img src="images/finance.jpg" alt="Фінансова грамотність">
+        <div class="media">
+          <img
+            src="images/finance.jpg"
+            alt="Фінансова грамотність"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1516542076529-1ea3854896e1?q=80&w=900&auto=format&fit=crop';"
+          />
+        </div>
         <div class="content">
           <h3>Фінансова грамотність</h3>
-          <p>Розберіться, як працюють гроші, щоб жити впевнено та вільно.</p>
-          <a href="article1.html">Читати</a>
+          <p>Розберіться, як працюють гроші, щоб жити впевнено.</p>
+          <a class="btn" href="article1.html">Читати</a>
         </div>
       </article>
 
+      <!-- 2 -->
       <article class="card">
-        <img src="images/budget.jpg" alt="Планування бюджету">
+        <div class="media">
+          <img
+            src="images/budget.jpg"
+            alt="Планування бюджету"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=900&auto=format&fit=crop';"
+          />
+        </div>
         <div class="content">
           <h3>Як планувати бюджет ефективно</h3>
-          <p>Навчіться правильно розподіляти витрати та створити фінансову дисципліну.</p>
-          <a href="article2.html">Читати</a>
+          <p>Правильний розподіл витрат та фіндисципліна.</p>
+          <a class="btn" href="article2.html">Читати</a>
         </div>
       </article>
 
+      <!-- 3 -->
       <article class="card">
-        <img src="images/invest.jpg" alt="Інвестування">
+        <div class="media">
+          <img
+            src="images/invest.jpg"
+            alt="Інвестування для початківців"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1553729459-efe14ef6055d?q=80&w=900&auto=format&fit=crop';"
+          />
+        </div>
         <div class="content">
           <h3>Інвестування для початківців</h3>
-          <p>Почніть інвестувати без великих ризиків і з розумінням інструментів.</p>
-          <a href="article3.html">Читати</a>
+          <p>Почніть інвестувати без великих ризиків.</p>
+          <a class="btn" href="article3.html">Читати</a>
         </div>
       </article>
 
-      <article class="card">
-        <img src="images/pillow.jpg" alt="Фінансова подушка">
+      <!-- 4 (нижній ряд, трохи більша) -->
+      <article class="card card--lg">
+        <div class="media">
+          <img
+            src="images/pillow.jpg"
+            alt="Фінансова подушка"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?q=80&w=900&auto=format&fit=crop';"
+          />
+        </div>
         <div class="content">
           <h3>Фінансова подушка</h3>
           <p>Стратегія фінансового захисту для будь-кого.</p>
-          <a href="article4.html">Читати</a>
+          <a class="btn" href="article4.html">Читати</a>
         </div>
       </article>
 
-      <article class="card">
-        <img src="images/saving.jpg" alt="Економія грошей">
+      <!-- 5 (нижній ряд, трохи більша) -->
+      <article class="card card--lg">
+        <div class="media">
+          <img
+            src="images/saving.jpg"
+            alt="Економія грошей"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1604881980920-8e8a5d1a29d7?q=80&w=900&auto=format&fit=crop';"
+          />
+        </div>
         <div class="content">
           <h3>Топ поради для економії грошей</h3>
-          <p>Лайфхаки, як економити і не втрачати якість життя.</p>
-          <a href="article5.html">Читати</a>
+          <p>Лайфхаки, як економити без втрати якості життя.</p>
+          <a class="btn" href="article5.html">Читати</a>
         </div>
       </article>
     </section>
-  </div>
+  </main>
 </body>
 </html>
