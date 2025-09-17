@@ -3,15 +3,13 @@
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ФІНАНСОВИЙ БОТ + ОСОБИСТИЙ КАБІНЕТ + СТАТИСТИКА (ДЕНЬ/МІСЯЦЬ) + PDF/ДІАГРАМИ
-# КУРСИ (НБУ + COINGECKO), ФІНАНСОВА ВІКТОРИНА, ТА 🧠 AI-ПОМИЧНИК (LOCAL)
+# КУРСИ (НБУ + COINGECKO), ФІНАНСОВА ВІКТОРИНА, ТА 📰 ФІНАНСОВИЙ БЛОГ (КНОПКА)
 # ─────────────────────────────────────────────────────────────────────────────
 # ВИМОГИ (requirements.txt):
 # python-telegram-bot[job-queue]==20.3
 # reportlab
 # matplotlib
 # requests
-# transformers==4.43.3
-# torch==2.2.2
 # ─────────────────────────────────────────────────────────────────────────────
 
 import os
@@ -43,48 +41,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ==== AI (локальна маленька модель, без інтернету/платних ендпоїнтів) ====
-from transformers import pipeline
-AI_MODE = os.getenv("AI_MODE", "local")         # "local" (рекомендовано) або "hf" (резерв)
-LOCAL_MODEL_ID = os.getenv("LOCAL_MODEL_ID", "sshleifer/tiny-gpt2")
-
-# РЕЗЕРВ: HTTP до HF API (не використовується, якщо AI_MODE=local)
-HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "gpt2")
-HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-
-def _ai_local_init():
-    try:
-        return pipeline("text-generation", model=LOCAL_MODEL_ID)
-    except Exception as e:
-        # якщо раптом локальна модель не зібралась — повернемо None
-        return None
-
-_local_generator = _ai_local_init()
-
-def ai_answer(prompt: str) -> str:
-    """Єдина точка входу для AI-помічника."""
-    # LOCAL: швидко і безкоштовно
-    if AI_MODE == "local" and _local_generator is not None:
-        out = _local_generator(prompt, max_length=200, num_return_sequences=1)
-        return out[0]["generated_text"]
-
-    # РЕЗЕРВНИЙ шлях (якщо хтось увімкне AI_MODE=hf у Variables):
-    try:
-        headers = {"Authorization": f"Bearer {HF_API_KEY}"} if HF_API_KEY else {}
-        payload = {"inputs": prompt}
-        r = requests.post(HF_URL, headers=headers, json=payload, timeout=60)
-        if r.status_code == 200:
-            data = r.json()
-            if isinstance(data, list) and data and "generated_text" in data[0]:
-                return data[0]["generated_text"]
-            if isinstance(data, dict) and "generated_text" in data:
-                return data["generated_text"]
-            return str(data)[:1000]
-        return f"AI помічник тимчасово недоступний (HTTP {r.status_code})."
-    except Exception as e:
-        return "AI помічник недоступний зараз."
-
 # ===================== CONFIG =====================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -92,6 +48,9 @@ if not BOT_TOKEN:
 
 DB_PATH = "finance.db"
 pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+
+# URL головної сторінки з усіма статтями твого сайту
+BLOG_URL = os.getenv("BLOG_URL", "https://hnidets523.github.io")
 
 # ===================== DB =====================
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -265,8 +224,7 @@ QUIZ_QUESTIONS_BASE = [
     STAT_DAY_SELECT,
     PROFILE_EDIT_NAME,
     QUIZ_ACTIVE,       # вікторина
-    AI_ASK,            # AI-помічник: очікуємо запит
-) = range(10)
+) = range(9)
 
 # ===================== RATES (NBU + CoinGecko) =====================
 async def refresh_rates_job(context: ContextTypes.DEFAULT_TYPE):
@@ -371,7 +329,7 @@ def build_stats_text(rows, title):
             sums[t] = 0.0
         sums[t] += a
         lines.append(f"• {t} | {CATEGORY_EMOJI.get(c, '')} {c}/{s or '-'} — {a:.2f} {curx} ({com or '-'})")
-    total = "\n".join([f"{k}: {v:.2f}" for k, v in sums.items()])
+        total = "\n".join([f"{k}: {v:.2f}" for k, v in sums.items()])
     tip = random.choice(TIPS)
     return f"{title}\n\n" + "\n".join(lines) + f"\n\nПідсумок:\n{total}\n\n💡 {tip}"
 
@@ -456,7 +414,7 @@ def main_menu_ikb():
         [("💸 Витрати", "type:exp"), ("💰 Надходження", "type:inc")],
         [("📈 Інвестиції", "type:inv"), ("📊 Статистика", "stats:open")],
         [("🎮 Гра", "quiz:start"), ("👤 Мій профіль", "profile:open")],
-        [("🧠 AI-помічник", "ai:open")]
+        [("📰 Фінансовий блог", "blog:open")]
     ])
 
 def categories_ikb(tname):
@@ -556,9 +514,27 @@ INTRO_TEXT = (
     "• Будувати 🥧 діаграми витрат та генерувати 📄 PDF-звіти\n"
     "• Зберігати історію транзакцій і профіль (ім’я, валюта)\n"
     "• Показувати реальні курси валют/крипти (НБУ + CoinGecko)\n"
-    "• 🧠 Відповідати як AI-помічник на довільні питання\n\n"
+    "• 📰 «Фінансовий блог»: добірка статей про бюджет, інвестиції та подушку безпеки\n\n"
     "Починай із додавання запису або відкрий «📊 Статистика». Готовий? 🙂\n"
 )
+
+def blog_intro_text() -> str:
+    return (
+        "📰 *ФІНАНСОВИЙ БЛОГ*\n"
+        "Розділ з короткими практичними статтями:\n"
+        "• Фінансова грамотність\n"
+        "• Планування бюджету\n"
+        "• Інвестування для початківців\n"
+        "• Подушка безпеки\n"
+        "• Поради з економії\n\n"
+        "Натисни кнопку нижче, щоб перейти на головну сторінку блогу з усіма статтями."
+    )
+
+def blog_open_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 Відкрити фінансовий блог", url=BLOG_URL)],
+        [InlineKeyboardButton("🏠 Головне меню", callback_data="main:open")]
+    ])
 
 # ===================== MAIN MENU SENDER =====================
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str | None = None):
@@ -596,6 +572,11 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ГОЛОВНЕ МЕНЮ
     if data == "main:open":
         await send_main_menu(update, context, "🏠 Повернувся в головне меню")
+        return MAIN
+
+    # БЛОГ
+    if data == "blog:open":
+        await q.edit_message_text(blog_intro_text(), parse_mode="Markdown", reply_markup=blog_open_kb())
         return MAIN
 
     # ОНБОРДИНГ: валюта
@@ -678,7 +659,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STAT_YEAR_SELECT
 
     if data.startswith("stats:year:"):
-        y = int(data.split(":")[2])
+        y = int(data.split(":", 2)[2])
         context.user_data["year"] = y
         await q.edit_message_text("Оберіть місяць:", reply_markup=months_ikb())
         return STAT_MONTH_SELECT
@@ -688,7 +669,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STAT_MONTH_SELECT
 
     if data.startswith("stats:month:"):
-        m = int(data.split(":")[2])
+        m = int(data.split(":", 2)[2])
         context.user_data["month"] = m
         if context.user_data.get("stat_mode") == "day":
             y = context.user_data["year"]
@@ -712,7 +693,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return STAT_MONTH_SELECT
 
     if data.startswith("stats:day:"):
-        d = int(data.split(":")[2])
+        d = int(data.split(":", 2)[2])
         y, m = context.user_data["year"], context.user_data["month"]
         rows, _ = fetch_day(uid, y, m, d)
         title = f"📅 {d} {MONTHS[m]} {y}"
@@ -736,7 +717,7 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "stats:pie":
         payload = context.user_data.get("last_report")
         if not payload:
-            await q.answer("Спочатку сформуйте звіт.", show_alert=True)
+            await q.answer("Немає звіту для діаграми.", show_alert=True)
             return MAIN
         _, rows, title = payload
         img = "pie.png"
@@ -786,63 +767,9 @@ async def on_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Готово. Обери наступну дію:", reply_markup=profile_menu_ikb())
         return MAIN
 
-    # ВІКТОРИНА
-    if data == "quiz:start":
-        explain = (
-            "🎮 *Фінансова грамотність — міні-тест*\n"
-            "──────────────────────\n"
-            "• 20 коротких запитань (A/B/C/D)\n"
-            "• В кінці — бали + розбір помилок\n\n"
-            "Готовий? Зараз з’явиться перше питання 👇"
-        )
-        q_indexes = list(range(len(QUIZ_QUESTIONS_BASE)))
-        random.shuffle(q_indexes)
-        q_indexes = q_indexes[:20]
-        context.user_data["quiz_idx_list"] = q_indexes
-        context.user_data["quiz_pos"] = 0
-        context.user_data["quiz_score"] = 0
-        context.user_data["quiz_mistakes"] = []
-        await q.edit_message_text(explain, parse_mode="Markdown")
-        return await quiz_ask_next(update, context)
-
-    if data.startswith("quiz:ans:"):
-        parts = data.split(":")
-        qidx = int(parts[2])   # позиція (0..19)
-        choice = int(parts[3]) # 0..3
-
-        pos = context.user_data.get("quiz_pos", 0)
-        if qidx != pos:
-            await q.answer("Відповідь уже прийнята, рухаємось далі…")
-            return QUIZ_ACTIVE
-
-        idx_list = context.user_data.get("quiz_idx_list", [])
-        base_idx = idx_list[pos]
-        item = QUIZ_QUESTIONS_BASE[base_idx]
-
-        correct = item["ans"]
-        letters = ["A", "B", "C", "D"]
-        if choice == correct:
-            context.user_data["quiz_score"] = context.user_data.get("quiz_score", 0) + 1
-            await q.answer("✅ Правильно!")
-        else:
-            context.user_data["quiz_mistakes"].append(
-                (item["q"], letters[choice], letters[correct], item["opts"][correct])
-            )
-            await q.answer("❌ Неправильно")
-
-        context.user_data["quiz_pos"] = pos + 1
-        return await quiz_ask_next(update, context)
-
-    # AI-ПОМІЧНИК (кнопка з меню)
-    if data == "ai:open":
-        intro = (
-            "🧠 *AI-помічник*\n"
-            "Напиши будь-яке запитання (про фінанси, економію, ідеї бюджету тощо).\n"
-            "Натисни «🏠 Головне меню», щоб вийти."
-        )
-        await q.edit_message_text(intro, parse_mode="Markdown", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
-        # Переключаємось у стан очікування тексту від користувача
-        return AI_ASK
+    if data == "unknown":
+        await q.answer("Невідома дія.", show_alert=True)
+        return MAIN
 
     await q.answer("Невідома дія.", show_alert=True)
     return MAIN
@@ -932,23 +859,11 @@ async def handle_profile_edit_name(update: Update, context: ContextTypes.DEFAULT
     await update.message.reply_text("✅ Ім’я оновлено.\n\n" + (txt or ""), reply_markup=profile_menu_ikb())
     return MAIN
 
-# === AI-помічник: приймаємо повідомлення користувача у стані AI_ASK ===
-async def handle_ai_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_msg = (update.message.text or "").strip()
-    if not user_msg:
-        await update.message.reply_text("Напиши питання 🙂", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
-        return AI_ASK
-    reply = ai_answer(user_msg)
-    # тримаєм відповідь акуратною
-    if len(reply) > 1200:
-        reply = reply[:1200] + "..."
-    await update.message.reply_text(f"🧠 Відповідь:\n{reply}", reply_markup=ikb([[("🏠 Головне меню","main:open")]]))
-    # залишаємося в AI_ASK, щоб можна було продовжувати діалог
-    return AI_ASK
+# ===================== COMMANDS SHORTCUTS =====================
+async def cmd_blog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(blog_intro_text(), parse_mode="Markdown", reply_markup=blog_open_kb())
 
-# ===================== START/ONBOARD TEXT =====================
 async def cmd_start_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # якщо користувач пише /start у середині діалогу
     return await cmd_start(update, context)
 
 # ===================== APP =====================
@@ -979,16 +894,14 @@ def build_app():
                                 CallbackQueryHandler(on_cb)],
 
             QUIZ_ACTIVE: [CallbackQueryHandler(on_cb)],
-
-            AI_ASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_text),
-                     CallbackQueryHandler(on_cb)],
         },
         fallbacks=[CallbackQueryHandler(on_cb)],
         allow_reentry=True
     )
 
     app.add_handler(conv)
-    # На випадок якщо користувач знову надішле /start під час інших станів
+    # Швидкі команди
+    app.add_handler(CommandHandler("blog", cmd_blog))
     app.add_handler(CommandHandler("start", cmd_start_text))
     return app
 
